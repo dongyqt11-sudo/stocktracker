@@ -19,6 +19,13 @@ from app.schemas.screenshots import (
     ScreenshotUploadResponse,
 )
 from app.services.ocr_recognizer import recognize_screenshot_by_ocr
+from app.services.stock_code_map import (
+    apply_stock_code_suggestions,
+    is_valid_stock_code,
+    load_stock_code_map,
+    normalize_stock_name,
+    update_stock_code_map_from_items,
+)
 
 router = APIRouter(prefix="/screenshots", tags=["screenshots"])
 
@@ -39,6 +46,22 @@ def _save_upload(file: UploadFile) -> Path:
     return target
 
 
+def _build_stock_code_map(db: Session) -> dict[str, str]:
+    mapping = load_stock_code_map()
+    rows = (
+        db.query(Holding.stock_name, Holding.stock_code)
+        .filter(Holding.stock_name.isnot(None))
+        .order_by(Holding.id)
+        .all()
+    )
+    for stock_name, stock_code in rows:
+        name = normalize_stock_name(stock_name)
+        code = str(stock_code or "").strip()
+        if name and is_valid_stock_code(code):
+            mapping[name] = code
+    return mapping
+
+
 @router.post("/upload", response_model=ScreenshotUploadResponse)
 def upload_screenshot(
     file: UploadFile = File(...),
@@ -52,6 +75,8 @@ def upload_screenshot(
 
     path = _save_upload(file)
     recognized_data = recognize_screenshot_by_ocr(str(path), hint_type=hint_type)
+    if not recognized_data.get("error"):
+        recognized_data = apply_stock_code_suggestions(recognized_data, _build_stock_code_map(db))
 
     screenshot = Screenshot(
         account_id=account_id,
@@ -98,6 +123,17 @@ def confirm_screenshot(
         raise HTTPException(status_code=400, detail="Recognition result is not a holdings page.")
     if not recognized.items:
         raise HTTPException(status_code=400, detail="No holdings records to save.")
+    invalid_codes = [
+        item.stock_name or f"row {index + 1}"
+        for index, item in enumerate(recognized.items)
+        if not is_valid_stock_code(item.stock_code)
+    ]
+    if invalid_codes:
+        names = ", ".join(invalid_codes[:5])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Please fill valid 6-digit stock codes before saving: {names}",
+        )
 
     try:
         for item in recognized.items:
@@ -122,6 +158,7 @@ def confirm_screenshot(
         screenshot.status = "confirmed"
         screenshot.screenshot_type = "holdings"
         screenshot.raw_ai_response = payload.data
+        update_stock_code_map_from_items(recognized.items)
         db.commit()
     except Exception as exc:
         db.rollback()

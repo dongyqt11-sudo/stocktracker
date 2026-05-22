@@ -35,6 +35,10 @@ const emptyRow: HoldingRow = {
   profit_loss_pct: null,
 };
 
+function isSixDigitCode(value: unknown) {
+  return /^\d{6}$/.test(String(value ?? "").trim());
+}
+
 export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -102,7 +106,12 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
       if (!current) return current;
       const items = current.items.map((row, index) => {
         if (index !== rowIndex) return row;
-        return { ...row, [key]: numeric ? (value === "" ? null : Number(value)) : value };
+        const nextRow = { ...row, [key]: numeric ? (value === "" ? null : Number(value)) : value };
+        if (key === "stock_code") {
+          delete nextRow.stock_code_suggested;
+          delete nextRow.stock_code_source;
+        }
+        return nextRow;
       });
       return { ...current, items };
     });
@@ -130,9 +139,9 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
 
   async function handleConfirm() {
     if (!screenshotId || !recognizedData) return;
-    const missingCode = recognizedData.items.some((item) => !String(item.stock_code ?? "").trim());
-    if (missingCode) {
-      setError("截图里没有股票代码，请先在黄色代码栏手动补齐，再确认入库。");
+    const invalidCode = recognizedData.items.some((item) => !isSixDigitCode(item.stock_code));
+    if (invalidCode) {
+      setError("请先补齐 6 位股票代码，再确认入库。确认后系统会把“名称-代码”记到本地，下次自动带出。");
       return;
     }
     setError(null);
@@ -241,7 +250,7 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
                   快照日期
                 </label>
                 <Input id="snapshot-date" type="date" value={recognizedData.snapshot_date ?? ""} onChange={(event) => updateSnapshotDate(event.target.value)} />
-                <div className="text-xs text-slate-400">黄色字段代表 OCR 不确定，需要你确认或补充。</div>
+                <div className="text-xs text-slate-400">黄色字段代表需要确认；蓝色代码来自本地历史映射。</div>
               </div>
               <div className="overflow-x-auto rounded-lg border border-slate-100">
                 <Table>
@@ -257,16 +266,30 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
                     {recognizedData.items.map((row, rowIndex) => (
                       <tr key={rowIndex}>
                         {columns.map((column) => {
-                          const uncertain = Boolean(row[`${String(column.key)}_uncertain`]);
+                          const key = String(column.key);
+                          const missingCode = column.key === "stock_code" && !String(row.stock_code ?? "").trim();
+                          const invalidCode = column.key === "stock_code" && String(row.stock_code ?? "").trim() && !isSixDigitCode(row.stock_code);
+                          const suggestedCode = column.key === "stock_code" && Boolean(row.stock_code_suggested);
+                          const uncertain = Boolean(row[`${key}_uncertain`]) || missingCode || invalidCode;
                           return (
-                            <Td key={String(column.key)} className={uncertain ? "bg-amber-50" : undefined}>
+                            <Td
+                              key={key}
+                              className={cn(
+                                uncertain && "bg-amber-50",
+                                suggestedCode && !uncertain && "bg-blue-50",
+                              )}
+                            >
                               <Input
                                 type={column.numeric ? "number" : "text"}
                                 step={column.numeric ? "0.001" : undefined}
+                                inputMode={column.key === "stock_code" ? "numeric" : undefined}
+                                maxLength={column.key === "stock_code" ? 6 : undefined}
+                                placeholder={column.key === "stock_code" ? "补录6位代码" : undefined}
                                 value={(row[column.key] ?? "") as string | number}
                                 onChange={(event) => updateCell(rowIndex, column.key, event.target.value, column.numeric)}
                                 className="min-w-24 border-transparent bg-transparent px-1 focus:border-blue-200 focus:bg-white"
                               />
+                              {suggestedCode ? <div className="mt-1 text-[11px] text-blue-600">本地建议</div> : null}
                             </Td>
                           );
                         })}

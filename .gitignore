@@ -11,6 +11,7 @@ dist/
 
 backend/data/stocktracker.db
 backend/data/stocktracker.db-*
+backend/data/stock_code_map.json
 backend/data/screenshots/*
 !backend/data/screenshots/.gitkeep
 
