@@ -80,7 +80,7 @@ export default function HoldingsPage({ refreshKey, account }: HoldingsPageProps)
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Latest Holdings - {account.name}</CardTitle>
+          <CardTitle>最新持仓 - {account.name}</CardTitle>
           <Button variant="outline" onClick={() => void loadRows()} disabled={isLoading}>
             <RefreshCcw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
             刷新

@@ -24,36 +24,36 @@ import UploadPage from "./pages/UploadPage";
 type Page = "dashboard" | "upload" | "holdings" | "transactions" | "analytics" | "notes";
 
 const accounts: Account[] = [
-  { id: "account_1", name: "Account 1" },
-  { id: "account_2", name: "Account 2" },
+  { id: "account_1", name: "账户 1" },
+  { id: "account_2", name: "账户 2" },
 ];
 
 const navItems: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }> = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "upload", label: "Upload OCR", icon: CloudUpload },
-  { id: "holdings", label: "Holdings", icon: LineChart },
-  { id: "transactions", label: "Trades", icon: FileText },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "notes", label: "Notes", icon: BookOpen },
+  { id: "dashboard", label: "仪表盘", icon: LayoutDashboard },
+  { id: "upload", label: "上传识别", icon: CloudUpload },
+  { id: "holdings", label: "持仓", icon: LineChart },
+  { id: "transactions", label: "交易", icon: FileText },
+  { id: "analytics", label: "分析", icon: BarChart3 },
+  { id: "notes", label: "笔记", icon: BookOpen },
 ];
 
 const pageTitles: Record<Page, string> = {
-  dashboard: "Dashboard",
-  upload: "Upload OCR",
-  holdings: "Holdings",
-  transactions: "Trades",
-  analytics: "Analytics",
-  notes: "Notes",
+  dashboard: "仪表盘",
+  upload: "上传识别",
+  holdings: "持仓",
+  transactions: "交易",
+  analytics: "分析",
+  notes: "笔记",
 };
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-8 py-16 text-center shadow-soft">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+    <div className="rounded-card border border-dashed border-[var(--border)] bg-[var(--bg-card)] px-8 py-16 text-center shadow-card">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-light text-primary">
         <ShieldCheck className="h-7 w-7" />
       </div>
-      <h2 className="mt-5 text-xl font-semibold text-slate-950">{title}</h2>
-      <p className="mt-2 text-sm text-slate-500">This page will be completed in the next phase.</p>
+      <h2 className="mt-5 text-xl font-semibold text-text-primary">{title}</h2>
+      <p className="mt-2 text-sm text-text-secondary">此页面将在后续阶段完成。</p>
     </div>
   );
 }
@@ -98,37 +98,47 @@ export default function App() {
   }, [activeAccount, page, refreshKey]);
 
   return (
-    <div className="flex min-h-screen bg-transparent">
-      <aside className="hidden w-64 shrink-0 border-r border-slate-100 bg-white/95 px-4 py-8 shadow-[8px_0_30px_rgba(15,23,42,0.04)] lg:flex lg:flex-col">
+    <div className="flex min-h-screen" style={{ background: "var(--bg-page)" }}>
+      {/* 侧栏 */}
+      <aside className="hidden w-[220px] shrink-0 flex-col border-r border-[var(--border-light)] bg-[var(--bg-card)] px-4 py-6 shadow-card lg:flex">
+        {/* Logo */}
         <div className="flex items-center gap-3 px-1">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-600 text-white shadow-lg shadow-blue-600/30">
-            <TrendingUp className="h-6 w-6" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
+            <TrendingUp className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-lg font-bold leading-tight text-slate-950">StockTracker</div>
-            <div className="text-xs text-slate-500">Local trading journal</div>
+            <div className="text-lg font-bold leading-tight text-text-primary">StockTracker</div>
+            <div className="text-xs text-text-tertiary">本地交易日志</div>
           </div>
         </div>
 
-        <div className="mt-7 rounded-lg border border-slate-100 bg-slate-50 p-3">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Account</div>
-          <div className="grid gap-2">
-            {accounts.map((account) => (
-              <button
-                key={account.id}
-                onClick={() => selectAccount(account.id)}
-                className={cn(
-                  "h-10 rounded-md px-3 text-left text-sm font-semibold transition",
-                  activeAccount.id === account.id ? "bg-blue-600 text-white shadow-sm" : "bg-white text-slate-600 hover:text-blue-700",
-                )}
-              >
-                {account.name}
-              </button>
-            ))}
+        {/* 账户切换 */}
+        <div className="mt-6 rounded-card border border-[var(--border-light)] bg-[var(--bg-stripe)] p-3">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-text-tertiary">账户</div>
+          <div className="grid gap-1.5">
+            {accounts.map((account) => {
+              const active = activeAccount.id === account.id;
+              return (
+                <button
+                  key={account.id}
+                  onClick={() => selectAccount(account.id)}
+                  className={cn(
+                    "relative h-10 rounded-lg pl-3 pr-3 text-left text-sm font-semibold transition",
+                    active
+                      ? "border-l-[3px] border-primary bg-primary-light text-primary"
+                      : "bg-[var(--bg-card)] text-text-secondary hover:bg-[var(--bg-hover)]",
+                  )}
+                >
+                  {active ? <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-primary" /> : null}
+                  <span className="relative">{account.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <nav className="mt-7 space-y-2">
+        {/* 导航菜单 */}
+        <nav className="mt-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = page === item.id;
@@ -136,46 +146,49 @@ export default function App() {
               <button
                 key={item.id}
                 className={cn(
-                  "flex h-12 w-full items-center gap-4 rounded-lg px-5 text-sm font-semibold transition",
-                  active ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+                  "flex h-11 w-full items-center gap-3 rounded-lg px-4 text-sm font-semibold transition",
+                  active
+                    ? "bg-primary-light text-primary"
+                    : "text-text-secondary hover:bg-[var(--bg-hover)] hover:text-text-primary",
                 )}
                 onClick={() => setPage(item.id)}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-[18px] w-[18px]" strokeWidth={1.5} />
                 {item.label}
               </button>
             );
           })}
         </nav>
 
+        {/* 底部 */}
         <div className="mt-auto">
-          <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-5">
-            <div className="flex items-center gap-3 text-sm font-semibold text-emerald-700">
-              <ShieldCheck className="h-6 w-6" />
-              Local data only
+          <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-stripe)] px-3 py-2.5">
+            <div className="flex items-center gap-2 text-xs text-text-secondary">
+              <ShieldCheck className="h-4 w-4 text-down" />
+              本地存储 · 隐私优先
             </div>
-            <p className="mt-3 text-xs leading-5 text-slate-500">Records are stored locally and separated by account.</p>
           </div>
-          <div className="mt-10 flex items-center justify-between px-4 text-slate-400">
-            <Settings className="h-5 w-5" />
-            <span className="h-5 w-px bg-slate-200" />
-            <LogOut className="h-5 w-5" />
+          <div className="mt-8 flex items-center justify-between px-3 text-text-tertiary">
+            <Settings className="h-4 w-4" />
+            <span className="h-4 w-px bg-[var(--border-light)]" />
+            <LogOut className="h-4 w-4" />
           </div>
         </div>
       </aside>
 
+      {/* 主区域 */}
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-10 border-b border-white/70 bg-white/80 backdrop-blur lg:border-b-0">
-          <div className="flex items-center justify-between gap-4 px-5 py-5 lg:px-10">
+        <header className="sticky top-0 z-10 border-b border-[var(--border-light)] bg-[var(--bg-card)]/90 backdrop-blur">
+          <div className="flex items-center justify-between gap-4 px-6 py-4 lg:px-8">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950">{pageTitles[page]}</h1>
-              <p className="mt-1 text-sm text-slate-500">Current account: {activeAccount.name}</p>
+              <h1 className="text-2xl font-bold tracking-tight text-text-primary">{pageTitles[page]}</h1>
+              <p className="mt-0.5 text-sm text-text-secondary">当前账户：{activeAccount.name}</p>
             </div>
             <div className="flex items-center gap-3">
               <select
                 value={activeAccount.id}
                 onChange={(event) => selectAccount(event.target.value)}
-                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-400"
+                className="h-10 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm font-semibold text-text-primary outline-none focus:border-primary"
               >
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>
@@ -183,15 +196,15 @@ export default function App() {
                   </option>
                 ))}
               </select>
-              <Button onClick={() => setPage("upload")} className="h-11 rounded-lg px-5">
+              <Button onClick={() => setPage("upload")} className="h-10 rounded-lg px-4">
                 <CloudUpload className="h-4 w-4" />
-                Upload
+                上传截图
               </Button>
             </div>
           </div>
         </header>
 
-        <main className="px-5 pb-10 lg:px-10">{content}</main>
+        <main className="px-6 pb-10 lg:px-8">{content}</main>
       </div>
     </div>
   );
