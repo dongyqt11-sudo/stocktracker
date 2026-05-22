@@ -70,7 +70,7 @@ export default function App() {
 
   const content = useMemo(() => {
     if (page === "dashboard") {
-      return <DashboardPage refreshKey={refreshKey} account={activeAccount} />;
+      return <DashboardPage refreshKey={refreshKey} account={activeAccount} onNavigate={(target) => setPage(target)} />;
     }
     if (page === "holdings") {
       return <HoldingsPage refreshKey={refreshKey} account={activeAccount} />;
@@ -141,7 +141,7 @@ export default function App() {
         </nav>
 
         <div className="mt-auto">
-          <div className="rounded-lg border border-slate-100 bg-gradient-to-br from-emerald-50 to-white p-5">
+          <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-5">
             <div className="flex items-center gap-3 text-sm font-semibold text-emerald-700">
               <ShieldCheck className="h-6 w-6" />
               Local data only
