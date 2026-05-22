@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.holdings import Holding
 from app.models.screenshots import Screenshot
+from app.models.transactions import Transaction
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -116,4 +117,89 @@ def dashboard_summary(
             "upload_streak_days": _upload_streak(upload_dates),
         },
         "recent_transactions": [],
+    }
+
+
+@router.get("/overview")
+def analytics_overview(
+    account_id: str = Query(default="account_1"),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    latest_date = db.scalar(
+        select(Holding.snapshot_date)
+        .where(Holding.account_id == account_id)
+        .order_by(desc(Holding.snapshot_date))
+        .limit(1)
+    )
+
+    # Top profit/loss holdings
+    profit_ranking: list[dict[str, Any]] = []
+    if latest_date is not None:
+        rows = list(
+            db.scalars(
+                select(Holding)
+                .where(Holding.account_id == account_id, Holding.snapshot_date == latest_date)
+                .order_by(desc(Holding.profit_loss))
+                .limit(5)
+            )
+        )
+        profit_ranking = [_holding_dict(row) for row in rows]
+
+    # Position concentration (top 5 by market value + others)
+    concentration: list[dict[str, Any]] = []
+    if latest_date is not None:
+        all_holdings = list(
+            db.scalars(
+                select(Holding)
+                .where(Holding.account_id == account_id, Holding.snapshot_date == latest_date)
+                .order_by(desc(Holding.market_value))
+            )
+        )
+        top5 = all_holdings[:5]
+        others_value = sum(_float(row.market_value) for row in all_holdings[5:])
+        for row in top5:
+            concentration.append({
+                "stock_code": row.stock_code,
+                "stock_name": row.stock_name,
+                "market_value": _float(row.market_value),
+                "pct": round(_float(row.market_value) / (sum(_float(h.market_value) for h in all_holdings) or 1) * 100, 1),
+            })
+        if others_value > 0:
+            total_mv = sum(_float(row.market_value) for row in all_holdings)
+            concentration.append({
+                "stock_code": "",
+                "stock_name": "其他",
+                "market_value": others_value,
+                "pct": round(others_value / (total_mv or 1) * 100, 1),
+            })
+
+    # Monthly transaction stats
+    today = date.today()
+    month_start = today.replace(day=1)
+    month_txns = list(
+        db.scalars(
+            select(Transaction)
+            .where(
+                Transaction.account_id == account_id,
+                Transaction.trade_time >= datetime.combine(month_start, datetime.min.time()),
+            )
+        )
+    )
+    buy_txns = [t for t in month_txns if t.direction == "buy"]
+    sell_txns = [t for t in month_txns if t.direction == "sell"]
+    buy_amount = sum(_float(t.amount) for t in buy_txns)
+    sell_amount = sum(_float(t.amount) for t in sell_txns)
+
+    return {
+        "account_id": account_id,
+        "profit_ranking": profit_ranking,
+        "concentration": concentration,
+        "monthly_stats": {
+            "month": month_start.isoformat(),
+            "trade_count": len(month_txns),
+            "buy_count": len(buy_txns),
+            "sell_count": len(sell_txns),
+            "buy_amount": buy_amount,
+            "sell_amount": sell_amount,
+        },
     }

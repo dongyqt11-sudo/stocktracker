@@ -203,3 +203,38 @@ export type ConsistencyResult = {
 export async function getConsistencyCheck(accountId = "account_1"): Promise<ConsistencyResult> {
   return request<ConsistencyResult>(`/api/dashboard/consistency?account_id=${encodeURIComponent(accountId)}`);
 }
+
+export type ProfitRankingItem = {
+  stock_code: string;
+  stock_name: string | null;
+  profit_loss: number;
+  market_value: number;
+  profit_loss_pct: number | null;
+};
+
+export type ConcentrationItem = {
+  stock_code: string;
+  stock_name: string | null;
+  market_value: number;
+  pct: number;
+};
+
+export type MonthlyStats = {
+  month: string;
+  trade_count: number;
+  buy_count: number;
+  sell_count: number;
+  buy_amount: number;
+  sell_amount: number;
+};
+
+export type AnalyticsOverview = {
+  account_id: string;
+  profit_ranking: ProfitRankingItem[];
+  concentration: ConcentrationItem[];
+  monthly_stats: MonthlyStats;
+};
+
+export async function getAnalyticsOverview(accountId = "account_1"): Promise<AnalyticsOverview> {
+  return request<AnalyticsOverview>(`/api/analytics/overview?account_id=${encodeURIComponent(accountId)}`);
+}
