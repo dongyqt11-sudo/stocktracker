@@ -45,23 +45,74 @@ const rangeOptions: Array<{ label: string; value: RangeMode; days?: number }> = 
   { label: "自定义", value: "custom" },
 ];
 
-function deltaText(value: number | null | undefined) {
-  if (value === null || value === undefined) return "暂无昨日数据";
-  return `较昨日 ${signedCurrency(value)}`;
+function sparklineData(curve: Array<{ date: string; total_assets: number | null; market_value: number | null; cash_available: number | null }>, key: "total_assets" | "market_value" | "cash_available") {
+  return curve
+    .filter((p) => p[key] !== null)
+    .map((p) => ({ v: p[key] }));
+}
+
+function MiniSparkline({ data, tone }: { data: Array<{ v: number | null }>; tone: "blue" | "purple" | "green" | "red" }) {
+  const strokeColor = { blue: "#2563EB", purple: "#8B5CF6", green: "#10B981", red: "#EF4444" }[tone];
+  const points = data.filter((d) => d.v !== null);
+  if (points.length < 2) {
+    return (
+      <div className="flex h-[30px] items-center justify-center">
+        <svg width="100%" height="30">
+          <line x1="8" y1="15" x2="calc(100% - 8)" y2="15" stroke="#E5E7EB" strokeWidth="1.5" strokeDasharray="4 3" />
+        </svg>
+      </div>
+    );
+  }
+  const vals = points.map((d) => d.v!);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const w = 100 / (points.length - 1 || 1);
+  const pathD = points
+    .map((d, i) => {
+      const x = i * w;
+      const y = 28 - ((d.v! - min) / range) * 24;
+      return `${i === 0 ? "M" : "L"}${x},${y}`;
+    })
+    .join(" ");
+  return (
+    <div className="h-[30px]">
+      <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="h-full w-full">
+        <path d={pathD} fill="none" stroke={strokeColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
+function changeBadge(delta: number | null | undefined) {
+  if (delta === null || delta === undefined) return null;
+  const isUp = delta > 0;
+  const isDown = delta < 0;
+  const cls = isUp ? "text-up bg-up-bg" : isDown ? "text-down bg-down-bg" : "text-text-tertiary bg-[var(--border-light)]";
+  const sign = isUp ? "+" : "";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold ${cls}`}>
+      {sign}{formatCurrency(delta)}
+    </span>
+  );
 }
 
 function StatCard({
   title,
   value,
   delta,
+  deltaPct,
   icon,
   tone,
+  sparkline,
 }: {
   title: string;
   value: string;
   delta: number | null | undefined;
+  deltaPct?: number | null | undefined;
   icon: React.ReactNode;
   tone: "blue" | "purple" | "green" | "red";
+  sparkline?: Array<{ v: number | null }>;
 }) {
   const toneClass = {
     blue: "bg-blue-50 text-blue-600",
@@ -71,15 +122,30 @@ function StatCard({
   }[tone];
 
   return (
-    <Card className="min-h-[136px]">
-      <CardContent className="flex items-center gap-5 p-6">
-        <div className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-full", toneClass)}>{icon}</div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">{title}</div>
-          <div className="mt-2 truncate text-2xl font-bold tabular-nums text-slate-950">{value}</div>
-          <div className="mt-2 text-xs text-slate-400">
-            <span className={delta === null || delta === undefined ? "text-slate-400" : profitClass(delta)}>{deltaText(delta)}</span>
-          </div>
+    <Card className="shadow-card">
+      <CardContent className="p-5">
+        {/* 标题行 */}
+        <div className="flex items-center gap-2.5">
+          <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", toneClass)}>{icon}</div>
+          <span className="text-sm font-semibold text-text-secondary">{title}</span>
+        </div>
+
+        {/* 大数字 */}
+        <div className="mt-3 text-[32px] font-semibold leading-tight tabular-nums text-text-primary">{value}</div>
+
+        {/* 迷你趋势线 */}
+        <div className="mt-2">{sparkline ? <MiniSparkline data={sparkline} tone={tone} /> : null}</div>
+
+        {/* 变化值 */}
+        <div className="mt-2 flex items-center gap-2 text-xs">
+          {delta !== null && delta !== undefined ? (
+            <>
+              {changeBadge(delta)}
+              {deltaPct !== null && deltaPct !== undefined ? changeBadge(deltaPct) : null}
+            </>
+          ) : (
+            <span className="text-text-tertiary">暂无对比数据</span>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -159,27 +225,36 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="总资产"
           value={summary?.has_assets_data ? formatCurrency(summary.total_assets) : "--"}
           delta={summary?.has_assets_data ? changes?.total_assets : null}
-          icon={<Wallet className="h-7 w-7" />}
+          icon={<Wallet className="h-5 w-5" />}
           tone="blue"
+          sparkline={sparklineData(chartData, "total_assets")}
         />
-        <StatCard title="持仓市值" value={formatCurrency(summary?.market_value ?? 0)} delta={changes?.market_value} icon={<PieChart className="h-7 w-7" />} tone="purple" />
+        <StatCard
+          title="持仓市值"
+          value={summary?.has_assets_data ? formatCurrency(summary.market_value) : formatCurrency(summary?.market_value ?? 0)}
+          delta={summary?.has_assets_data ? changes?.market_value : null}
+          icon={<PieChart className="h-5 w-5" />}
+          tone="purple"
+          sparkline={sparklineData(chartData, "market_value")}
+        />
         <StatCard
           title="可用现金"
           value={summary?.has_assets_data ? formatCurrency(summary.cash_available) : "--"}
           delta={summary?.has_assets_data ? changes?.cash_available : null}
-          icon={<CircleDollarSign className="h-7 w-7" />}
+          icon={<CircleDollarSign className="h-5 w-5" />}
           tone="green"
+          sparkline={sparklineData(chartData, "cash_available")}
         />
         <StatCard
           title="当日盈亏"
           value={summary?.has_assets_data ? signedCurrency(summary.daily_profit_loss) : "--"}
           delta={summary?.has_assets_data ? changes?.daily_profit_loss : null}
-          icon={<LineChartIcon className="h-7 w-7" />}
+          icon={<LineChartIcon className="h-5 w-5" />}
           tone="red"
         />
       </section>
