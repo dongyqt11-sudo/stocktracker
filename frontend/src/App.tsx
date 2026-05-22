@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { Account } from "./api/client";
 import { Button } from "./components/ui/button";
 import { cn } from "./lib/utils";
+import AnalyticsPage from "./pages/AnalyticsPage";
 import DashboardPage from "./pages/DashboardPage";
 import HoldingsPage from "./pages/HoldingsPage";
 import TransactionsPage from "./pages/TransactionsPage";
@@ -78,6 +79,9 @@ export default function App() {
     }
     if (page === "transactions") {
       return <TransactionsPage refreshKey={refreshKey} account={activeAccount} />;
+    }
+    if (page === "analytics") {
+      return <AnalyticsPage refreshKey={refreshKey} account={activeAccount} />;
     }
     if (page === "upload") {
       return (
