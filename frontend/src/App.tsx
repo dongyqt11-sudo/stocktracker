@@ -123,14 +123,14 @@ export default function App() {
                   key={account.id}
                   onClick={() => selectAccount(account.id)}
                   className={cn(
-                    "relative h-10 rounded-lg pl-3 pr-3 text-left text-sm font-semibold transition",
+                    "relative h-10 rounded-lg py-2 pl-4 pr-3 text-left text-sm font-semibold transition",
                     active
-                      ? "border-l-[3px] border-primary bg-primary-light text-primary"
-                      : "bg-[var(--bg-card)] text-text-secondary hover:bg-[var(--bg-hover)]",
+                      ? "bg-primary-light text-primary"
+                      : "bg-[#F3F4F6] text-text-secondary hover:bg-[var(--bg-hover)]",
                   )}
                 >
-                  {active ? <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-primary" /> : null}
-                  <span className="relative">{account.name}</span>
+                  {active ? <span className="absolute left-1 top-2 bottom-2 w-[3px] rounded-full bg-primary" /> : null}
+                  {account.name}
                 </button>
               );
             })}
