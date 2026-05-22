@@ -170,8 +170,8 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
         <CardContent className="space-y-5">
           <div
             className={cn(
-              "flex min-h-[360px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-6 py-8 text-center transition",
-              isDragging && "border-blue-500 bg-blue-50",
+              "flex min-h-[340px] flex-col items-center justify-center rounded-card border-2 border-dashed border-[var(--border)] bg-[var(--bg-stripe)] px-6 py-8 text-center transition",
+              isDragging && "border-primary bg-primary-light/50",
             )}
             onDragOver={(event) => {
               event.preventDefault();
@@ -186,24 +186,25 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
             }}
           >
             {previewUrl ? (
-              <img src={previewUrl} alt="截图预览" className="max-h-[340px] rounded-lg object-contain shadow-soft" />
+              <img src={previewUrl} alt="截图预览" className="max-h-[330px] rounded-card object-contain" />
             ) : (
               <>
-                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                  <UploadCloud className="h-8 w-8" />
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-light text-primary">
+                  <UploadCloud className="h-7 w-7" />
                 </div>
-                <p className="text-lg font-semibold text-slate-950">拖入同花顺截图</p>
-                <p className="mt-2 text-sm text-slate-500">支持持仓、成交、资产页；也可以点击选择或 Ctrl+V 粘贴</p>
+                <p className="text-base font-bold text-text-primary">拖入同花顺截图</p>
+                <p className="mt-2 text-sm text-text-secondary">支持持仓、成交、资产页</p>
+                <p className="mt-3 text-xs text-text-tertiary">小提示：支持 Ctrl+V 直接粘贴截图</p>
               </>
             )}
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="h-11">
+            <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="h-10">
               {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
               选择图片
             </Button>
-            <Button variant="outline" disabled className="h-11">
+            <Button variant="outline" disabled className="h-10">
               <ClipboardPaste className="h-4 w-4" />
               Ctrl+V 粘贴
             </Button>
@@ -219,12 +220,9 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
             />
           </div>
 
-          <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            <div className="flex items-center gap-2 font-semibold">
-              <ShieldCheck className="h-4 w-4" />
-              本地识别 · 隐私优先
-            </div>
-            <p className="mt-1 text-xs leading-5 text-emerald-700/80">当前使用 Windows 本地 OCR，不调用 AI，不上传到外部服务。</p>
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--border-light)] bg-[var(--bg-stripe)] px-4 py-2.5 text-xs text-text-tertiary">
+            <ShieldCheck className="h-3.5 w-3.5 text-down" />
+            本地识别 · 隐私优先 · 不调用 AI，不上传外部服务
           </div>
 
           {uploadStatus ? <div className="rounded-lg border border-slate-100 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">{uploadStatus}</div> : null}
@@ -367,8 +365,23 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
               </pre>
             </div>
           ) : (
-            <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-4 text-center text-sm text-slate-500">
-              上传持仓、成交或资产截图后，识别结果会显示在这里。
+            <div className="flex min-h-[420px] flex-col items-center justify-center rounded-card border-2 border-dashed border-[var(--border)] bg-[var(--bg-stripe)] px-4 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-light text-primary">
+                <FileCheck2 className="h-7 w-7" />
+              </div>
+              <p className="mt-4 text-sm font-semibold text-text-secondary">上传截图后，识别结果会出现在这里</p>
+              <div className="mt-4 space-y-1.5 text-left text-xs text-text-tertiary">
+                <div className="flex items-center gap-2">
+                  <span className="text-down">&#10003;</span> 持仓页面
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-down">&#10003;</span> 当日成交
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-down">&#10003;</span> 资产总览
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-text-tertiary">小提示：支持 Ctrl+V 直接粘贴截图</p>
             </div>
           )}
         </CardContent>

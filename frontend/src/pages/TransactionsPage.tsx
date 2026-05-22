@@ -1,4 +1,4 @@
-import { Download, RefreshCcw, Search } from "lucide-react";
+import { Download, FileText, RefreshCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Account, getTransactions, TransactionRow } from "../api/client";
@@ -117,30 +117,30 @@ export default function TransactionsPage({ refreshKey, account }: TransactionsPa
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-4">
-        <Card>
+        <Card className="shadow-card">
           <CardContent className="p-5">
-            <div className="text-xs font-semibold text-slate-500">总笔数</div>
-            <div className="mt-2 text-2xl font-bold tabular-nums text-slate-950">{summary.total}</div>
+            <div className="text-xs font-semibold text-text-secondary">总笔数</div>
+            <div className="mt-2 text-2xl font-bold tabular-nums text-text-primary">{summary.total}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="shadow-card">
           <CardContent className="p-5">
-            <div className="text-xs font-semibold text-slate-500">买入笔数</div>
-            <div className="mt-2 text-2xl font-bold tabular-nums text-red-500">{summary.buyCount}</div>
-            <div className="mt-1 text-xs text-slate-400">{formatCurrency(summary.buyAmount)}</div>
+            <div className="text-xs font-semibold text-text-secondary">买入笔数</div>
+            <div className="mt-2 text-2xl font-bold tabular-nums text-up">{summary.buyCount}</div>
+            <div className="mt-1 text-xs text-text-tertiary">{formatCurrency(summary.buyAmount)}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="shadow-card">
           <CardContent className="p-5">
-            <div className="text-xs font-semibold text-slate-500">卖出笔数</div>
-            <div className="mt-2 text-2xl font-bold tabular-nums text-emerald-600">{summary.sellCount}</div>
-            <div className="mt-1 text-xs text-slate-400">{formatCurrency(summary.sellAmount)}</div>
+            <div className="text-xs font-semibold text-text-secondary">卖出笔数</div>
+            <div className="mt-2 text-2xl font-bold tabular-nums text-down">{summary.sellCount}</div>
+            <div className="mt-1 text-xs text-text-tertiary">{formatCurrency(summary.sellAmount)}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="shadow-card">
           <CardContent className="p-5">
-            <div className="text-xs font-semibold text-slate-500">净买入</div>
-            <div className={cn("mt-2 text-2xl font-bold tabular-nums", summary.buyAmount - summary.sellAmount >= 0 ? "text-red-500" : "text-emerald-600")}>
+            <div className="text-xs font-semibold text-text-secondary">净买入</div>
+            <div className={cn("mt-2 text-2xl font-bold tabular-nums", summary.buyAmount - summary.sellAmount >= 0 ? "text-up" : "text-down")}>
               {formatCurrency(summary.buyAmount - summary.sellAmount)}
             </div>
           </CardContent>
@@ -164,38 +164,38 @@ export default function TransactionsPage({ refreshKey, account }: TransactionsPa
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-slate-500">从</label>
+              <label className="text-xs font-semibold text-text-tertiary">从</label>
               <Input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 w-36 text-sm"
+                className="h-[36px] w-36 rounded-lg text-sm"
               />
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-slate-500">至</label>
+              <label className="text-xs font-semibold text-text-tertiary">至</label>
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="h-9 w-36 text-sm"
+                className="h-[36px] w-36 rounded-lg text-sm"
               />
             </div>
             <div className="flex items-center gap-2">
-              <Search className="h-4 w-4 text-slate-400" />
+              <Search className="h-4 w-4 text-text-tertiary" />
               <Input
                 type="text"
                 placeholder="股票代码"
                 value={codeFilter}
                 onChange={(e) => setCodeFilter(e.target.value)}
-                className="h-9 w-28 text-sm"
+                className="h-[36px] w-28 rounded-lg text-sm"
                 maxLength={6}
               />
             </div>
             <select
               value={directionFilter}
               onChange={(e) => setDirectionFilter(e.target.value as "buy" | "sell" | "")}
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-400"
+              className="h-[36px] rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm font-semibold text-text-primary outline-none focus:border-primary"
             >
               <option value="">全部操作</option>
               <option value="buy">买入</option>
@@ -224,16 +224,16 @@ export default function TransactionsPage({ refreshKey, account }: TransactionsPa
                 <col className="w-[112px]" />
                 <col className="w-[80px]" />
               </colgroup>
-              <thead className="sticky top-0 z-10 bg-slate-50">
-                <tr>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500">时间</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500">代码</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500">名称</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500">操作</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-slate-500">数量</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-slate-500">价格</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-slate-500">金额</th>
-                  <th className="px-3 py-3 text-right text-xs font-semibold text-slate-500">手续费</th>
+              <thead>
+                <tr className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-stripe)]">
+                  <th className="h-12 px-4 text-left text-xs font-semibold text-text-secondary">时间</th>
+                  <th className="h-12 px-4 text-left text-xs font-semibold text-text-secondary">代码</th>
+                  <th className="h-12 px-4 text-left text-xs font-semibold text-text-secondary">名称</th>
+                  <th className="h-12 px-4 text-left text-xs font-semibold text-text-secondary">操作</th>
+                  <th className="h-12 px-4 text-right text-xs font-semibold text-text-secondary">数量</th>
+                  <th className="h-12 px-4 text-right text-xs font-semibold text-text-secondary">价格</th>
+                  <th className="h-12 px-4 text-right text-xs font-semibold text-text-secondary">金额</th>
+                  <th className="h-12 px-4 text-right text-xs font-semibold text-text-secondary">手续费</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,8 +254,14 @@ export default function TransactionsPage({ refreshKey, account }: TransactionsPa
                 ))}
                 {!rows.length && !isLoading ? (
                   <tr>
-                    <td colSpan={8} className="py-16 text-center text-sm text-slate-500">
-                      暂无交易记录
+                    <td colSpan={8}>
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--bg-stripe)] text-text-tertiary">
+                          <FileText className="h-7 w-7" />
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-text-secondary">还没有交易记录</p>
+                        <p className="mt-1 text-xs text-text-tertiary">上传"当日成交"截图，系统会自动识别交易记录</p>
+                      </div>
                     </td>
                   </tr>
                 ) : null}
