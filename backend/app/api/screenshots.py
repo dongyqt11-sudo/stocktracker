@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -161,6 +161,11 @@ def _confirm_holdings(
         )
 
     try:
+        db.query(Holding).filter(
+            Holding.account_id == screenshot.account_id,
+            Holding.snapshot_date == recognized.snapshot_date,
+        ).delete()
+
         for item in recognized.items:
             data = item.model_dump()
             db.add(
@@ -216,24 +221,45 @@ def _confirm_transactions(
             detail=f"Please fill valid 6-digit stock codes before saving: {names}",
         )
 
+    inserted = 0
     try:
         for item in recognized.items:
             data = item.model_dump()
+            trade_time = data["trade_time"]
+            stock_code = data["stock_code"]
+            direction = data["direction"]
+            price = _safe_decimal(data.get("price"))
+            quantity = _safe_decimal(data.get("quantity"))
+
+            dup = db.scalar(
+                select(exists().where(
+                    Transaction.account_id == screenshot.account_id,
+                    Transaction.trade_time == trade_time,
+                    Transaction.stock_code == stock_code,
+                    Transaction.direction == direction,
+                    Transaction.price == price,
+                    Transaction.quantity == quantity,
+                ))
+            )
+            if dup:
+                continue
+
             db.add(
                 Transaction(
                     account_id=screenshot.account_id,
                     account_name=screenshot.account_name,
-                    trade_time=data["trade_time"],
-                    stock_code=data["stock_code"],
+                    trade_time=trade_time,
+                    stock_code=stock_code,
                     stock_name=data.get("stock_name"),
-                    direction=data["direction"],
-                    price=_safe_decimal(data.get("price")),
-                    quantity=_safe_decimal(data.get("quantity")),
+                    direction=direction,
+                    price=price,
+                    quantity=quantity,
                     amount=_safe_decimal(data.get("amount")),
                     fee=_safe_decimal(data.get("fee")),
                     screenshot_id=screenshot.id,
                 )
             )
+            inserted += 1
 
         screenshot.status = "confirmed"
         screenshot.screenshot_type = "transactions"
@@ -244,7 +270,7 @@ def _confirm_transactions(
         db.rollback()
         raise HTTPException(status_code=500, detail="Database save failed. Please retry.") from exc
 
-    return len(recognized.items)
+    return inserted
 
 
 def _confirm_assets(
