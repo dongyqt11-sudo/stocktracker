@@ -1,7 +1,7 @@
 import { RefreshCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Account, getLatestHoldings, HoldingRow } from "../api/client";
+import { Account, AssetsDailyRow, getLatestAssets, getLatestHoldings, HoldingRow } from "../api/client";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Table, Td, Th } from "../components/ui/table";
@@ -14,6 +14,7 @@ type HoldingsPageProps = {
 
 export default function HoldingsPage({ refreshKey, account }: HoldingsPageProps) {
   const [rows, setRows] = useState<HoldingRow[]>([]);
+  const [assets, setAssets] = useState<AssetsDailyRow | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +22,12 @@ export default function HoldingsPage({ refreshKey, account }: HoldingsPageProps)
     setIsLoading(true);
     setError(null);
     try {
-      setRows(await getLatestHoldings(account.id));
+      const [holdings, latestAssets] = await Promise.all([
+        getLatestHoldings(account.id),
+        getLatestAssets(account.id).catch(() => null),
+      ]);
+      setRows(holdings);
+      setAssets(latestAssets);
     } catch (err) {
       setError(err instanceof Error ? err.message : "持仓加载失败");
     } finally {
@@ -39,7 +45,7 @@ export default function HoldingsPage({ refreshKey, account }: HoldingsPageProps)
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
         <Card>
           <CardContent className="p-6">
             <div className="text-sm font-semibold text-slate-500">快照日期</div>
@@ -48,8 +54,20 @@ export default function HoldingsPage({ refreshKey, account }: HoldingsPageProps)
         </Card>
         <Card>
           <CardContent className="p-6">
+            <div className="text-sm font-semibold text-slate-500">总资产</div>
+            <div className="mt-3 text-2xl font-bold text-slate-950">{formatCurrency(assets?.total_assets)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
             <div className="text-sm font-semibold text-slate-500">持仓市值</div>
             <div className="mt-3 text-2xl font-bold text-slate-950">{formatCurrency(totalMarketValue)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-sm font-semibold text-slate-500">可用现金</div>
+            <div className="mt-3 text-2xl font-bold text-slate-950">{formatCurrency(assets?.cash_available)}</div>
           </CardContent>
         </Card>
         <Card>
