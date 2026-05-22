@@ -332,19 +332,21 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
         </section>
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[0.9fr_1.05fr]">
-        <Card>
+      <section className="grid gap-5 xl:grid-cols-[0.9fr_1.05fr]">
+        <Card className="shadow-card">
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>资产曲线</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex rounded-lg bg-slate-50 p-1">
+              <div className="flex rounded-lg bg-[var(--border-light)] p-1">
               {rangeOptions.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setRangeMode(option.value)}
                   className={cn(
                     "h-8 rounded-md px-3 text-xs font-semibold transition",
-                    rangeMode === option.value ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-900",
+                    rangeMode === option.value
+                      ? "bg-primary-light text-primary shadow-sm"
+                      : "text-text-secondary hover:bg-[var(--bg-hover)] hover:text-text-primary",
                   )}
                 >
                   {option.label}
@@ -358,33 +360,47 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
                   max={3650}
                   value={customDays}
                   onChange={(event) => setCustomDays(Math.max(1, Math.min(3650, Number(event.target.value) || 1)))}
-                  className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400"
+                  className="h-8 w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2 text-xs font-semibold text-text-primary outline-none focus:border-primary"
                 />
               ) : null}
             </div>
           </CardHeader>
           <CardContent className="h-80">
-            {chartData.length ? (
+            {chartData.length >= 3 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ left: 0, right: 16, top: 10, bottom: 8 }}>
                   <defs>
-                    <linearGradient id="assetFill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.02} />
+                    <linearGradient id="assetFillDash" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#2563EB" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#2563EB" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 4" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} width={76} />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value))} labelFormatter={(label) => `日期 ${label}`} />
-                  <Area connectNulls={false} type="monotone" dataKey="total_assets" name="总资产" stroke="#3B82F6" strokeWidth={3} fill="url(#assetFill)" />
+                  <CartesianGrid stroke="var(--border-light)" strokeDasharray="3 4" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: "var(--text-tertiary)" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: "var(--text-tertiary)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={72}
+                    tickFormatter={(v: number) => (v >= 10000 ? `${(v / 10000).toFixed(v % 10000 === 0 ? 0 : 1)}万` : v.toLocaleString())}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}
+                    formatter={(value) => formatCurrency(Number(value))}
+                    labelFormatter={(label) => `日期 ${label}`}
+                  />
+                  <Area connectNulls={false} type="monotone" dataKey="total_assets" name="总资产" stroke="#2563EB" strokeWidth={2.5} fill="url(#assetFillDash)" />
                   <Line connectNulls={false} type="monotone" dataKey="market_value" name="持仓市值" stroke="#8B5CF6" strokeWidth={2} dot={false} />
                   <Line connectNulls={false} type="monotone" dataKey="cash_available" name="可用现金" stroke="#10B981" strokeWidth={2} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
-                上传资产页并确认后，这里会显示资产曲线。
+              <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-stripe)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-light text-primary">
+                  <LineChartIcon className="h-7 w-7" />
+                </div>
+                <p className="mt-4 text-sm font-semibold text-text-secondary">数据积累中</p>
+                <p className="mt-1 text-xs text-text-tertiary">继续上传几天的资产截图，就能看到完整的资产曲线</p>
               </div>
             )}
           </CardContent>
