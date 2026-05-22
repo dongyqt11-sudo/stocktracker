@@ -17,6 +17,7 @@ import { Button } from "./components/ui/button";
 import { cn } from "./lib/utils";
 import DashboardPage from "./pages/DashboardPage";
 import HoldingsPage from "./pages/HoldingsPage";
+import TransactionsPage from "./pages/TransactionsPage";
 import UploadPage from "./pages/UploadPage";
 
 type Page = "dashboard" | "upload" | "holdings" | "transactions" | "analytics" | "notes";
@@ -74,6 +75,9 @@ export default function App() {
     }
     if (page === "holdings") {
       return <HoldingsPage refreshKey={refreshKey} account={activeAccount} />;
+    }
+    if (page === "transactions") {
+      return <TransactionsPage refreshKey={refreshKey} account={activeAccount} />;
     }
     if (page === "upload") {
       return (
