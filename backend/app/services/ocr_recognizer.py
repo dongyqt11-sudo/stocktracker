@@ -215,13 +215,24 @@ def _recognize_holdings(lines: list[dict[str, Any]]) -> dict[str, Any]:
     if not items:
         return {"error": "OCR 已识别文字，但未能按持仓页布局解析出持仓行", "ocr_lines": _ocr_payload(lines)}
 
-    return {
+    asset_fields = {
+        "total_assets": _value_near_keyword(lines, ("总资产", "资产总值")),
+        "market_value": _value_near_keyword(lines, ("持仓市值", "证券市值", "股票市值")),
+        "cash_available": _value_near_keyword(lines, ("可用资金", "可用现金", "可取资金")),
+        "daily_profit_loss": _value_near_keyword(lines, ("当日盈亏", "今日盈亏", "日盈亏")),
+        "total_profit_loss": _value_near_keyword(lines, ("累计盈亏", "总盈亏", "历史盈亏")),
+    }
+
+    result: dict[str, Any] = {
         "screenshot_type": "holdings",
         "snapshot_date": date.today().isoformat(),
         "items": items,
         "recognition_method": "windows_ocr",
         "ocr_lines": _ocr_payload(lines),
     }
+    if any(v is not None for v in asset_fields.values()):
+        result["asset_fields"] = {k: v for k, v in asset_fields.items() if v is not None}
+    return result
 
 
 def _line_has_direction(line: dict[str, Any]) -> bool:

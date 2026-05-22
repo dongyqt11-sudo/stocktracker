@@ -2,6 +2,7 @@ import { ClipboardPaste, FileCheck2, Loader2, Plus, ShieldCheck, Trash2, UploadC
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Account, confirmScreenshot, HoldingRow, RecognizedHoldingData, uploadScreenshot } from "../api/client";
+import { formatCurrency, profitClass, signedCurrency } from "../lib/format";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -256,6 +257,49 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
                 <Input id="snapshot-date" type="date" value={recognizedData.snapshot_date ?? ""} onChange={(event) => updateSnapshotDate(event.target.value)} />
                 <div className="text-xs text-slate-400">黄色字段代表需要确认；蓝色代码来自本地历史映射。</div>
               </div>
+
+              {recognizedData.asset_fields ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+                  <div className="mb-2 text-xs font-semibold text-emerald-700">资产总览（从截图中识别）</div>
+                  <div className="grid grid-cols-5 gap-3 text-center">
+                    {recognizedData.asset_fields.total_assets !== undefined ? (
+                      <div>
+                        <div className="text-xs text-slate-500">总资产</div>
+                        <div className="text-base font-bold tabular-nums text-slate-900">{formatCurrency(recognizedData.asset_fields.total_assets)}</div>
+                      </div>
+                    ) : null}
+                    {recognizedData.asset_fields.market_value !== undefined ? (
+                      <div>
+                        <div className="text-xs text-slate-500">持仓市值</div>
+                        <div className="text-base font-bold tabular-nums text-slate-900">{formatCurrency(recognizedData.asset_fields.market_value)}</div>
+                      </div>
+                    ) : null}
+                    {recognizedData.asset_fields.cash_available !== undefined ? (
+                      <div>
+                        <div className="text-xs text-slate-500">可用现金</div>
+                        <div className="text-base font-bold tabular-nums text-slate-900">{formatCurrency(recognizedData.asset_fields.cash_available)}</div>
+                      </div>
+                    ) : null}
+                    {recognizedData.asset_fields.daily_profit_loss !== undefined ? (
+                      <div>
+                        <div className="text-xs text-slate-500">当日盈亏</div>
+                        <div className={cn("text-base font-bold tabular-nums", profitClass(recognizedData.asset_fields.daily_profit_loss))}>
+                          {signedCurrency(recognizedData.asset_fields.daily_profit_loss)}
+                        </div>
+                      </div>
+                    ) : null}
+                    {recognizedData.asset_fields.total_profit_loss !== undefined ? (
+                      <div>
+                        <div className="text-xs text-slate-500">累计盈亏</div>
+                        <div className={cn("text-base font-bold tabular-nums", profitClass(recognizedData.asset_fields.total_profit_loss))}>
+                          {signedCurrency(recognizedData.asset_fields.total_profit_loss)}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="overflow-x-auto rounded-lg border border-slate-100">
                 <Table>
                   <thead className="bg-slate-50">

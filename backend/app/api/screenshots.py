@@ -185,6 +185,28 @@ def _confirm_holdings(
                 )
             )
 
+        asset_fields = payload.data.get("asset_fields") if isinstance(payload.data, dict) else None
+        if asset_fields and isinstance(asset_fields, dict):
+            existing = db.scalar(
+                select(AssetsDaily).where(
+                    AssetsDaily.account_id == screenshot.account_id,
+                    AssetsDaily.snapshot_date == recognized.snapshot_date,
+                )
+            )
+            if existing is None:
+                existing = AssetsDaily(
+                    account_id=screenshot.account_id,
+                    account_name=screenshot.account_name,
+                    snapshot_date=recognized.snapshot_date,
+                    screenshot_id=screenshot.id,
+                )
+                db.add(existing)
+            existing.total_assets = _safe_decimal(asset_fields.get("total_assets"))
+            existing.market_value = _safe_decimal(asset_fields.get("market_value"))
+            existing.cash_available = _safe_decimal(asset_fields.get("cash_available"))
+            existing.daily_profit_loss = _safe_decimal(asset_fields.get("daily_profit_loss"))
+            existing.total_profit_loss = _safe_decimal(asset_fields.get("total_profit_loss"))
+
         screenshot.status = "confirmed"
         screenshot.screenshot_type = "holdings"
         screenshot.raw_ai_response = payload.data

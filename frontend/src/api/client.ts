@@ -19,6 +19,13 @@ export type RecognizedHoldingData = {
   screenshot_type: string;
   snapshot_date?: string;
   items?: HoldingRow[];
+  asset_fields?: {
+    total_assets?: number;
+    market_value?: number;
+    cash_available?: number;
+    daily_profit_loss?: number;
+    total_profit_loss?: number;
+  };
   error?: string;
   recognition_method?: string;
   asset_check_warning?: string;
