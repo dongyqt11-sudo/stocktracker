@@ -129,10 +129,11 @@ def summary(
 
     holding_market_value = sum(_float(row.market_value) for row in holdings)
     holding_profit_loss = sum(_float(row.profit_loss) for row in holdings)
-    total_assets = _float(latest_assets.total_assets) if latest_assets else holding_market_value
-    market_value = _float(latest_assets.market_value) if latest_assets else holding_market_value
-    cash_available = _float(latest_assets.cash_available) if latest_assets else 0.0
-    daily_profit_loss = _float(latest_assets.daily_profit_loss) if latest_assets else holding_profit_loss
+    has_assets = latest_assets is not None
+    total_assets = _float(latest_assets.total_assets) if has_assets else 0.0
+    market_value = _float(latest_assets.market_value) if has_assets else holding_market_value
+    cash_available = _float(latest_assets.cash_available) if has_assets else 0.0
+    daily_profit_loss = _float(latest_assets.daily_profit_loss) if has_assets else 0.0
 
     since = date.today() - timedelta(days=days - 1)
     asset_curve = [
@@ -169,6 +170,7 @@ def summary(
     return {
         "account_id": account_id,
         "summary": {
+            "has_assets_data": has_assets,
             "total_assets": total_assets,
             "market_value": market_value,
             "cash_available": cash_available,

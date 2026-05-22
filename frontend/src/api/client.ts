@@ -86,6 +86,7 @@ export type AssetsDailyRow = {
 
 export type DashboardSummaryData = Omit<DashboardData, "asset_curve" | "recent_transactions"> & {
   summary: DashboardData["summary"] & {
+    has_assets_data: boolean;
     change_vs_previous?: {
       total_assets: number | null;
       market_value: number | null;

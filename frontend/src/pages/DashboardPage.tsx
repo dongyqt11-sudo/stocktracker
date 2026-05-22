@@ -160,11 +160,36 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
   return (
     <div className="space-y-6">
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="总资产" value={formatCurrency(summary?.total_assets ?? 0)} delta={changes?.total_assets} icon={<Wallet className="h-7 w-7" />} tone="blue" />
+        <StatCard
+          title="总资产"
+          value={summary?.has_assets_data ? formatCurrency(summary.total_assets) : "--"}
+          delta={summary?.has_assets_data ? changes?.total_assets : null}
+          icon={<Wallet className="h-7 w-7" />}
+          tone="blue"
+        />
         <StatCard title="持仓市值" value={formatCurrency(summary?.market_value ?? 0)} delta={changes?.market_value} icon={<PieChart className="h-7 w-7" />} tone="purple" />
-        <StatCard title="可用现金" value={formatCurrency(summary?.cash_available ?? 0)} delta={changes?.cash_available} icon={<CircleDollarSign className="h-7 w-7" />} tone="green" />
-        <StatCard title="当日盈亏" value={signedCurrency(summary?.daily_profit_loss ?? 0)} delta={changes?.daily_profit_loss} icon={<LineChartIcon className="h-7 w-7" />} tone="red" />
+        <StatCard
+          title="可用现金"
+          value={summary?.has_assets_data ? formatCurrency(summary.cash_available) : "--"}
+          delta={summary?.has_assets_data ? changes?.cash_available : null}
+          icon={<CircleDollarSign className="h-7 w-7" />}
+          tone="green"
+        />
+        <StatCard
+          title="当日盈亏"
+          value={summary?.has_assets_data ? signedCurrency(summary.daily_profit_loss) : "--"}
+          delta={summary?.has_assets_data ? changes?.daily_profit_loss : null}
+          icon={<LineChartIcon className="h-7 w-7" />}
+          tone="red"
+        />
       </section>
+
+      {!summary?.has_assets_data ? (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          尚未上传资产页截图，总资产/可用现金/当日盈亏需上传资产页后才能显示。
+          {" "}持仓市值来自持仓页截图。
+        </div>
+      ) : null}
 
       {consistency && consistency.issue_count > 0 ? (
         <section>
