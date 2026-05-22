@@ -17,10 +17,12 @@ export type HoldingRow = {
 
 export type RecognizedHoldingData = {
   screenshot_type: string;
-  snapshot_date: string;
-  items: HoldingRow[];
+  snapshot_date?: string;
+  items?: HoldingRow[];
   error?: string;
   recognition_method?: string;
+  asset_check_warning?: string;
+  asset_check_difference?: number;
   [key: string]: unknown;
 };
 
@@ -77,7 +79,6 @@ export type Account = {
 export async function uploadScreenshot(file: File, account: Account): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);
-  form.append("hint_type", "holdings");
   form.append("account_id", account.id);
   form.append("account_name", account.name);
   return request<UploadResponse>("/api/screenshots/upload", {

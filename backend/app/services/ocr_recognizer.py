@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +53,66 @@ def _to_number(text: str) -> float | None:
         return float(cleaned)
     except ValueError:
         return None
+
+
+def _ocr_payload(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{"text": line["text"], "x": line["x"], "y": line["y"]} for line in lines]
+
+
+def _joined_text(lines: list[dict[str, Any]]) -> str:
+    return "".join(line["text"] for line in lines)
+
+
+def _detect_screenshot_type(lines: list[dict[str, Any]]) -> str | None:
+    text = _joined_text(lines)
+    holding_score = sum(keyword in text for keyword in ("持仓", "成本价", "持仓数量", "持仓股"))
+    transaction_score = sum(keyword in text for keyword in ("成交", "委托", "买入", "卖出", "成交时间", "成交价格"))
+    asset_score = sum(keyword in text for keyword in ("总资产", "可用资金", "可用现金", "账户", "资产"))
+
+    if holding_score >= 2 or ("持仓" in text and "成本" in text):
+        return "holdings"
+    if transaction_score >= 2 and ("买入" in text or "卖出" in text):
+        return "transactions"
+    if asset_score >= 2 or ("总资产" in text and ("可用资金" in text or "可用现金" in text)):
+        return "assets"
+    return None
+
+
+def _extract_date(text: str, fallback: date | None = None) -> date:
+    fallback = fallback or date.today()
+    match = re.search(r"(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})", text)
+    if match:
+        return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    match = re.search(r"(?<!\d)(\d{1,2})[-/.月](\d{1,2})(?:日)?(?!\d)", text)
+    if match:
+        return date(fallback.year, int(match.group(1)), int(match.group(2)))
+    return fallback
+
+
+def _normalize_trade_time(text: str, fallback: date | None = None) -> str:
+    fallback = fallback or date.today()
+    snapshot_date = _extract_date(text, fallback)
+    time_match = re.search(r"(?<!\d)(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\d)", text)
+    if not time_match:
+        return f"{snapshot_date.isoformat()} 00:00:00"
+    hour = int(time_match.group(1))
+    minute = int(time_match.group(2))
+    second = int(time_match.group(3) or 0)
+    return datetime(
+        snapshot_date.year,
+        snapshot_date.month,
+        snapshot_date.day,
+        hour,
+        minute,
+        second,
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _is_date_or_time_text(text: str) -> bool:
+    return bool(
+        re.search(r"(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2})", text)
+        or re.search(r"(?<!\d)\d{1,2}:\d{2}(?::\d{2})?(?!\d)", text)
+    )
 
 
 def _line_bbox(line: dict[str, Any]) -> dict[str, float]:
@@ -122,24 +182,7 @@ def _numbers_in_column(lines: list[dict[str, Any]], x_min: float, x_max: float) 
     return values
 
 
-def recognize_screenshot_by_ocr(image_path: str, hint_type: str | None = None) -> dict[str, Any]:
-    """
-    Recognize a Tonghuashun holdings screenshot with local Windows OCR.
-
-    This does not call any AI service. Stock codes are left blank because the
-    holdings screenshot layout usually shows names but not codes.
-    """
-
-    try:
-        lines = _ocr_lines(image_path)
-    except AssertionError:
-        return {"error": "本机未安装中文 OCR 语言包，无法使用 Windows 本地 OCR"}
-    except Exception as exc:
-        return {"error": f"本地 OCR 识别失败：{exc}"}
-
-    if not any("持仓股" in line["text"] or line["text"] == "持仓" for line in lines):
-        return {"error": "未识别到同花顺持仓页"}
-
+def _recognize_holdings(lines: list[dict[str, Any]]) -> dict[str, Any]:
     name_lines = [line for line in lines if _is_stock_name(line)]
     items: list[dict[str, Any]] = []
 
@@ -170,12 +213,234 @@ def recognize_screenshot_by_ocr(image_path: str, hint_type: str | None = None) -
         items.append(item)
 
     if not items:
-        return {"error": "OCR 已识别文字，但未能按持仓页布局解析出持仓行", "ocr_lines": lines}
+        return {"error": "OCR 已识别文字，但未能按持仓页布局解析出持仓行", "ocr_lines": _ocr_payload(lines)}
 
     return {
         "screenshot_type": "holdings",
         "snapshot_date": date.today().isoformat(),
         "items": items,
         "recognition_method": "windows_ocr",
-        "ocr_lines": [{"text": line["text"], "x": line["x"], "y": line["y"]} for line in lines],
+        "ocr_lines": _ocr_payload(lines),
+    }
+
+
+def _line_has_direction(line: dict[str, Any]) -> bool:
+    return "买入" in line["text"] or "卖出" in line["text"]
+
+
+def _candidate_stock_name(lines: list[dict[str, Any]]) -> str | None:
+    ignored = {
+        "成交",
+        "委托",
+        "买入",
+        "卖出",
+        "撤单",
+        "成交价",
+        "成交价格",
+        "成交数量",
+        "成交金额",
+        "时间",
+        "日期",
+        "操作",
+        "方向",
+    }
+    for line in sorted(lines, key=lambda row: (row["x"], row["y"])):
+        text = line["text"]
+        if text in ignored or any(keyword in text for keyword in ignored):
+            continue
+        if re.search(r"[\u4e00-\u9fff]", text) and not _is_date_or_time_text(text):
+            return text
+    return None
+
+
+def _transaction_numbers(lines: list[dict[str, Any]]) -> list[tuple[float, float, str]]:
+    values: list[tuple[float, float, str]] = []
+    for line in lines:
+        text = line["text"]
+        if _is_date_or_time_text(text) or re.fullmatch(r"\d{6}", text):
+            continue
+        for number_text in re.findall(r"[-+]?\d[\d,]*(?:\.\d+)?", text):
+            if re.fullmatch(r"\d{6}", number_text):
+                continue
+            value = _to_number(number_text)
+            if value is not None:
+                values.append((line["x"], value, text))
+    return values
+
+
+def _assign_transaction_numbers(values: list[tuple[float, float, str]]) -> tuple[float | None, float | None, float | None]:
+    if not values:
+        return None, None, None
+    numeric_values = [value for _, value, _ in values]
+    amount = max((value for value in numeric_values if abs(value) >= 1000), default=None)
+    quantity = next(
+        (
+            value
+            for _, value, text in values
+            if value > 0
+            and float(value).is_integer()
+            and "." not in text
+            and value != amount
+            and value <= 1_000_000
+        ),
+        None,
+    )
+    price = next(
+        (
+            value
+            for _, value, text in values
+            if value != amount
+            and value != quantity
+            and abs(value) < 100_000
+            and ("." in text or quantity is not None)
+        ),
+        None,
+    )
+    if price is None and amount is not None and quantity:
+        price = round(amount / quantity, 4)
+
+    if price is None or quantity is None or amount is None:
+        by_x = [value for _, value, _ in sorted(values, key=lambda row: row[0])]
+        if price is None and by_x:
+            price = by_x[0]
+        if quantity is None and len(by_x) > 1:
+            quantity = by_x[1]
+        if amount is None and len(by_x) > 2:
+            amount = by_x[2]
+    return price, quantity, amount
+
+
+def _recognize_transactions(lines: list[dict[str, Any]]) -> dict[str, Any]:
+    text = _joined_text(lines)
+    fallback_date = _extract_date(text)
+    direction_lines = [line for line in lines if _line_has_direction(line)]
+    items: list[dict[str, Any]] = []
+
+    for index, direction_line in enumerate(direction_lines):
+        next_y = direction_lines[index + 1]["y"] if index + 1 < len(direction_lines) else direction_line["y"] + 140
+        row_lines = [
+            line
+            for line in lines
+            if direction_line["y"] - 35 <= line["y"] < next_y - 8
+        ]
+        row_text = " ".join(line["text"] for line in row_lines)
+        direction = "buy" if "买入" in row_text else "sell"
+        code_match = re.search(r"(?<!\d)(\d{6})(?!\d)", row_text)
+        values = _transaction_numbers(row_lines)
+        price, quantity, amount = _assign_transaction_numbers(values)
+
+        items.append(
+            {
+                "trade_time": _normalize_trade_time(row_text, fallback_date),
+                "stock_code": code_match.group(1) if code_match else "",
+                "stock_code_uncertain": code_match is None,
+                "stock_name": _candidate_stock_name(row_lines),
+                "direction": direction,
+                "price": price,
+                "quantity": quantity,
+                "amount": amount,
+                "fee": None,
+            }
+        )
+
+    if not items:
+        return {"error": "OCR 已识别文字，但未能按成交页布局解析出成交记录", "ocr_lines": _ocr_payload(lines)}
+
+    return {
+        "screenshot_type": "transactions",
+        "items": items,
+        "recognition_method": "windows_ocr",
+        "ocr_lines": _ocr_payload(lines),
+    }
+
+
+def _first_number_in_text(text: str) -> float | None:
+    numbers = [_to_number(match) for match in re.findall(r"[-+]?\d[\d,]*(?:\.\d+)?", text)]
+    numbers = [number for number in numbers if number is not None]
+    return numbers[-1] if numbers else None
+
+
+def _value_near_keyword(lines: list[dict[str, Any]], aliases: tuple[str, ...]) -> float | None:
+    for line in lines:
+        if not any(alias in line["text"] for alias in aliases):
+            continue
+        same_line_value = _first_number_in_text(line["text"])
+        if same_line_value is not None:
+            return same_line_value
+        nearby = [
+            candidate
+            for candidate in lines
+            if abs(candidate["y"] - line["y"]) <= 38
+            and candidate["x"] >= line["x"]
+            and _to_number(candidate["text"]) is not None
+        ]
+        if nearby:
+            return _to_number(sorted(nearby, key=lambda row: row["x"])[-1]["text"])
+        below = [
+            candidate
+            for candidate in lines
+            if 0 < candidate["y"] - line["y"] <= 90 and _to_number(candidate["text"]) is not None
+        ]
+        if below:
+            return _to_number(sorted(below, key=lambda row: (row["y"], row["x"]))[0]["text"])
+    return None
+
+
+def _recognize_assets(lines: list[dict[str, Any]]) -> dict[str, Any]:
+    text = _joined_text(lines)
+    total_assets = _value_near_keyword(lines, ("总资产", "资产总值"))
+    market_value = _value_near_keyword(lines, ("持仓市值", "证券市值", "股票市值", "市值"))
+    cash_available = _value_near_keyword(lines, ("可用资金", "可用现金", "可取资金"))
+    daily_profit_loss = _value_near_keyword(lines, ("当日盈亏", "今日盈亏", "日盈亏"))
+    total_profit_loss = _value_near_keyword(lines, ("累计盈亏", "总盈亏", "历史盈亏"))
+
+    result: dict[str, Any] = {
+        "screenshot_type": "assets",
+        "snapshot_date": _extract_date(text).isoformat(),
+        "total_assets": total_assets,
+        "market_value": market_value,
+        "cash_available": cash_available,
+        "daily_profit_loss": daily_profit_loss,
+        "total_profit_loss": total_profit_loss,
+        "recognition_method": "windows_ocr",
+        "ocr_lines": _ocr_payload(lines),
+    }
+    if total_assets is not None and market_value is not None and cash_available is not None:
+        difference = round(total_assets - market_value - cash_available, 2)
+        result["asset_check_difference"] = difference
+        if abs(difference) > 1:
+            result["asset_check_warning"] = f"总资产与持仓市值+可用现金差额为 {difference:.2f} 元，请检查识别结果。"
+
+    if total_assets is None and market_value is None and cash_available is None:
+        return {"error": "OCR 已识别文字，但未能按资产页布局解析出资产字段", "ocr_lines": _ocr_payload(lines)}
+    return result
+
+
+def recognize_screenshot_by_ocr(image_path: str, hint_type: str | None = None) -> dict[str, Any]:
+    """
+    Recognize Tonghuashun screenshots with local Windows OCR.
+
+    Stage 2 supports automatic type detection for holdings, transactions, and
+    assets pages. This does not call any AI service.
+    """
+
+    try:
+        lines = _ocr_lines(image_path)
+    except AssertionError:
+        return {"error": "本机未安装中文 OCR 语言包，无法使用 Windows 本地 OCR"}
+    except Exception as exc:
+        return {"error": f"本地 OCR 识别失败：{exc}"}
+
+    screenshot_type = _detect_screenshot_type(lines)
+    if screenshot_type == "holdings":
+        return _recognize_holdings(lines)
+    if screenshot_type == "transactions":
+        return _recognize_transactions(lines)
+    if screenshot_type == "assets":
+        return _recognize_assets(lines)
+
+    return {
+        "error": "无法识别截图类型，请检查是否为同花顺截图",
+        "recognition_method": "windows_ocr",
+        "ocr_lines": _ocr_payload(lines),
     }

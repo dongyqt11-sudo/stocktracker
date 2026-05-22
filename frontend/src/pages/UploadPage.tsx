@@ -71,7 +71,8 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
       const response = await uploadScreenshot(file, account);
       setScreenshotId(response.screenshot_id);
       setRecognizedData(response.recognized_data);
-      setUploadStatus(response.error || response.recognized_data.error ? "图片已保存，OCR 未能完整解析" : "识别完成，请检查后确认入库");
+      const typeLabel = response.recognized_data.screenshot_type ? `（${response.recognized_data.screenshot_type}）` : "";
+      setUploadStatus(response.error || response.recognized_data.error ? "图片已保存，OCR 未能完整解析" : `识别完成${typeLabel}，请检查结果`);
       if (response.error || response.recognized_data.error) {
         setError(response.error || response.recognized_data.error || "识别失败");
       }
@@ -103,7 +104,7 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
 
   function updateCell(rowIndex: number, key: keyof HoldingRow, value: string, numeric?: boolean) {
     setRecognizedData((current) => {
-      if (!current) return current;
+      if (!current?.items) return current;
       const items = current.items.map((row, index) => {
         if (index !== rowIndex) return row;
         const nextRow = { ...row, [key]: numeric ? (value === "" ? null : Number(value)) : value };
@@ -126,20 +127,20 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
           items: [{ ...emptyRow }],
         };
       }
-      return { ...current, items: [...current.items, { ...emptyRow }] };
+      return { ...current, screenshot_type: "holdings", items: [...(current.items ?? []), { ...emptyRow }] };
     });
   }
 
   function removeRow(rowIndex: number) {
     setRecognizedData((current) => {
-      if (!current) return current;
+      if (!current?.items) return current;
       return { ...current, items: current.items.filter((_, index) => index !== rowIndex) };
     });
   }
 
   async function handleConfirm() {
     if (!screenshotId || !recognizedData) return;
-    const invalidCode = recognizedData.items.some((item) => !isSixDigitCode(item.stock_code));
+    const invalidCode = (recognizedData.items ?? []).some((item) => !isSixDigitCode(item.stock_code));
     if (invalidCode) {
       setError("请先补齐 6 位股票代码，再确认入库。确认后系统会把“名称-代码”记到本地，下次自动带出。");
       return;
@@ -187,8 +188,8 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
                 <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600">
                   <UploadCloud className="h-8 w-8" />
                 </div>
-                <p className="text-lg font-semibold text-slate-950">拖入同花顺持仓截图</p>
-                <p className="mt-2 text-sm text-slate-500">也可以点击选择图片，或直接 Ctrl+V 粘贴截图</p>
+                <p className="text-lg font-semibold text-slate-950">拖入同花顺截图</p>
+                <p className="mt-2 text-sm text-slate-500">支持持仓、成交、资产页；也可以点击选择或 Ctrl+V 粘贴</p>
               </>
             )}
           </div>
@@ -223,7 +224,7 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
           </div>
 
           {uploadStatus ? <div className="rounded-lg border border-slate-100 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">{uploadStatus}</div> : null}
-          {isUploading ? <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">本地 OCR 通常几秒完成。截图里没有显示股票代码时，代码栏会留空并标黄。</div> : null}
+          {isUploading ? <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">本地 OCR 通常几秒完成。系统会自动判断持仓、成交或资产页。</div> : null}
           {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{error}</div> : null}
         </CardContent>
       </Card>
@@ -232,7 +233,7 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>识别结果</CardTitle>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={addRow}>
+            <Button variant="outline" onClick={addRow} disabled={recognizedData?.screenshot_type !== "holdings" && Boolean(recognizedData)}>
               <Plus className="h-4 w-4" />
               新增
             </Button>
@@ -243,7 +244,7 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          {recognizedData ? (
+          {recognizedData?.screenshot_type === "holdings" ? (
             <>
               <div className="grid gap-3 sm:grid-cols-[120px_220px_1fr] sm:items-center">
                 <label className="text-sm font-semibold text-slate-600" htmlFor="snapshot-date">
@@ -263,7 +264,7 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {recognizedData.items.map((row, rowIndex) => (
+                    {(recognizedData.items ?? []).map((row, rowIndex) => (
                       <tr key={rowIndex}>
                         {columns.map((column) => {
                           const key = String(column.key);
@@ -304,9 +305,23 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
                 </Table>
               </div>
             </>
+          ) : recognizedData ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                已识别为：{recognizedData.screenshot_type || "未知类型"}。本步骤先用于校验 OCR，成交页和资产页会在下一步接入确认入库。
+              </div>
+              {recognizedData.asset_check_warning ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  {recognizedData.asset_check_warning}
+                </div>
+              ) : null}
+              <pre className="max-h-[560px] overflow-auto rounded-lg border border-slate-100 bg-slate-950 p-4 text-xs leading-5 text-slate-50">
+                {JSON.stringify(recognizedData, null, 2)}
+              </pre>
+            </div>
           ) : (
             <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-4 text-center text-sm text-slate-500">
-              上传持仓截图后，识别结果会显示在这里。
+              上传持仓、成交或资产截图后，识别结果会显示在这里。
             </div>
           )}
         </CardContent>

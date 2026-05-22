@@ -65,7 +65,7 @@ def _build_stock_code_map(db: Session) -> dict[str, str]:
 @router.post("/upload", response_model=ScreenshotUploadResponse)
 def upload_screenshot(
     file: UploadFile = File(...),
-    hint_type: str | None = Form(default="holdings"),
+    hint_type: str | None = Form(default=None),
     account_id: str = Form(default="account_1"),
     account_name: str = Form(default="Account 1"),
     db: Session = Depends(get_db),
@@ -75,7 +75,7 @@ def upload_screenshot(
 
     path = _save_upload(file)
     recognized_data = recognize_screenshot_by_ocr(str(path), hint_type=hint_type)
-    if not recognized_data.get("error"):
+    if not recognized_data.get("error") and recognized_data.get("screenshot_type") == "holdings":
         recognized_data = apply_stock_code_suggestions(recognized_data, _build_stock_code_map(db))
 
     screenshot = Screenshot(
