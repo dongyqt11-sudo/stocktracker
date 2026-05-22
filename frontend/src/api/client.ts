@@ -175,3 +175,23 @@ export async function getAssetsTimeline(accountId = "account_1", days = 30): Pro
 export async function getLatestAssets(accountId = "account_1"): Promise<AssetsDailyRow | null> {
   return request<AssetsDailyRow | null>(`/api/assets/latest?account_id=${encodeURIComponent(accountId)}`);
 }
+
+export type ConsistencyIssue = {
+  stock_code: string;
+  stock_name: string | null;
+  type: "missing_holding" | "missing_transaction" | "quantity_mismatch";
+  message: string;
+  expected_quantity: number;
+  actual_quantity: number;
+  difference: number;
+};
+
+export type ConsistencyResult = {
+  account_id: string;
+  issue_count: number;
+  issues: ConsistencyIssue[];
+};
+
+export async function getConsistencyCheck(accountId = "account_1"): Promise<ConsistencyResult> {
+  return request<ConsistencyResult>(`/api/dashboard/consistency?account_id=${encodeURIComponent(accountId)}`);
+}

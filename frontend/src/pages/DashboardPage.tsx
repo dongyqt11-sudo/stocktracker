@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -8,6 +9,7 @@ import {
   LineChart as LineChartIcon,
   PieChart,
   Wallet,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -21,7 +23,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { Account, DashboardSummaryData, getDashboardSummary } from "../api/client";
+import { Account, ConsistencyResult, DashboardSummaryData, getConsistencyCheck, getDashboardSummary } from "../api/client";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Table, Td, Th } from "../components/ui/table";
@@ -127,11 +129,17 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
   const [rangeMode, setRangeMode] = useState<RangeMode>("30");
   const [customDays, setCustomDays] = useState(120);
   const [data, setData] = useState<DashboardSummaryData | null>(null);
+  const [consistency, setConsistency] = useState<ConsistencyResult | null>(null);
+  const [showConsistencyDetails, setShowConsistencyDetails] = useState(false);
   const rangeDays = rangeMode === "custom" ? customDays : Number(rangeMode);
 
   useEffect(() => {
     void getDashboardSummary(account.id, rangeDays).then(setData).catch(() => setData(null));
   }, [account.id, rangeDays, refreshKey]);
+
+  useEffect(() => {
+    void getConsistencyCheck(account.id).then(setConsistency).catch(() => setConsistency(null));
+  }, [account.id, refreshKey]);
 
   const summary = data?.summary;
   const changes = summary?.change_vs_previous;
@@ -157,6 +165,72 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
         <StatCard title="可用现金" value={formatCurrency(summary?.cash_available ?? 0)} delta={changes?.cash_available} icon={<CircleDollarSign className="h-7 w-7" />} tone="green" />
         <StatCard title="当日盈亏" value={signedCurrency(summary?.daily_profit_loss ?? 0)} delta={changes?.daily_profit_loss} icon={<LineChartIcon className="h-7 w-7" />} tone="red" />
       </section>
+
+      {consistency && consistency.issue_count > 0 ? (
+        <section>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-base font-bold text-amber-900">
+                    检测到 {consistency.issue_count} 条数据可能不一致
+                  </div>
+                  <div className="mt-1 text-sm text-amber-700">
+                    成交记录与持仓快照之间存在差异，点击查看详情。系统不会自动修改您的数据。
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowConsistencyDetails(!showConsistencyDetails)}
+                  className="shrink-0 rounded-lg bg-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-300"
+                >
+                  {showConsistencyDetails ? "收起" : "点击查看"}
+                </button>
+              </div>
+            </div>
+
+            {showConsistencyDetails ? (
+              <div className="mt-4 space-y-3">
+                {consistency.issues.map((issue, i) => (
+                  <div key={i} className="rounded-lg border border-amber-200 bg-white px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold tabular-nums text-slate-800">{issue.stock_code}</span>
+                          {issue.stock_name ? <span className="text-sm text-slate-500">{issue.stock_name}</span> : null}
+                          <span className={cn(
+                            "rounded-md px-2 py-0.5 text-xs font-semibold",
+                            issue.type === "quantity_mismatch" ? "bg-red-50 text-red-500" :
+                            issue.type === "missing_holding" ? "bg-orange-50 text-orange-500" :
+                            "bg-blue-50 text-blue-600",
+                          )}>
+                            {issue.type === "quantity_mismatch" ? "数量不一致" :
+                             issue.type === "missing_holding" ? "缺少持仓" : "缺少成交记录"}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-600">{issue.message}</div>
+                      </div>
+                      {issue.type === "quantity_mismatch" ? (
+                        <div className="shrink-0 text-right text-sm">
+                          <div className="text-slate-500">预期: {issue.expected_quantity.toLocaleString()} 股</div>
+                          <div className="text-slate-500">实际: {issue.actual_quantity.toLocaleString()} 股</div>
+                          <div className={cn("font-semibold", issue.difference > 0 ? "text-red-500" : "text-emerald-600")}>
+                            差额 {issue.difference > 0 ? "+" : ""}{issue.difference.toLocaleString()} 股
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.05fr]">
         <Card>
