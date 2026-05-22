@@ -1,5 +1,23 @@
 # 开发报告
 
+## 2026-05-22：阶段 2 第 2 步 数据写入与 API
+
+### 完成内容
+
+- 确认入库支持三类截图：持仓写入 `holdings`，成交写入 `transactions`，资产写入 `assets_daily`。
+- 成交和资产数据补齐账户维度，资产快照改为按“账户 + 日期”唯一，支持两个账户分别记录。
+- 新增接口：`GET /api/transactions`、`GET /api/assets/timeline`、`GET /api/assets/latest`、`GET /api/dashboard/summary`。
+- 上传页现在可确认成交页/资产页识别结果并写入本地数据库。
+- 前端 API 客户端新增交易、资产、Dashboard 汇总调用函数。
+
+### 自测结果
+
+- 数据库自动迁移通过，`transactions` 和 `assets_daily` 已有账户字段。
+- 直接写入自测通过：2 条成交、1 条资产快照均可确认入库；测试数据已清理。
+- 新接口路由加载通过。
+- 后端编译检查通过。
+- 前端 TypeScript 类型检查通过。
+
 ## 2026-05-22：阶段 2 第 1 步 OCR 扩展
 
 ### 完成内容

@@ -79,9 +79,9 @@ export default function App() {
       return (
         <UploadPage
           account={activeAccount}
-          onConfirmed={() => {
+          onConfirmed={(screenshotType) => {
             setRefreshKey((value) => value + 1);
-            setPage("holdings");
+            setPage(screenshotType === "holdings" ? "holdings" : "dashboard");
           }}
         />
       );

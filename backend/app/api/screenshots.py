@@ -6,18 +6,23 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
+from app.models.assets import AssetsDaily
 from app.models.holdings import Holding
 from app.models.screenshots import Screenshot
+from app.models.transactions import Transaction
+from app.schemas.assets import AssetsRecognizedData
 from app.schemas.holdings import HoldingRecognizedData
 from app.schemas.screenshots import (
     ScreenshotConfirmRequest,
     ScreenshotConfirmResponse,
     ScreenshotUploadResponse,
 )
+from app.schemas.transactions import TransactionRecognizedData
 from app.services.ocr_recognizer import recognize_screenshot_by_ocr
 from app.services.stock_code_map import (
     apply_stock_code_suggestions,
@@ -75,7 +80,7 @@ def upload_screenshot(
 
     path = _save_upload(file)
     recognized_data = recognize_screenshot_by_ocr(str(path), hint_type=hint_type)
-    if not recognized_data.get("error") and recognized_data.get("screenshot_type") == "holdings":
+    if not recognized_data.get("error") and recognized_data.get("screenshot_type") in {"holdings", "transactions"}:
         recognized_data = apply_stock_code_suggestions(recognized_data, _build_stock_code_map(db))
 
     screenshot = Screenshot(
@@ -111,9 +116,29 @@ def confirm_screenshot(
         raise HTTPException(status_code=404, detail="Screenshot record not found.")
     if screenshot.status == "confirmed":
         raise HTTPException(status_code=409, detail="This screenshot has already been confirmed.")
-    if payload.screenshot_type != "holdings":
-        raise HTTPException(status_code=400, detail="Stage 1 only supports holdings screenshots.")
+    if payload.screenshot_type == "holdings":
+        inserted_count = _confirm_holdings(screenshot, payload, db)
+    elif payload.screenshot_type == "transactions":
+        inserted_count = _confirm_transactions(screenshot, payload, db)
+    elif payload.screenshot_type == "assets":
+        inserted_count = _confirm_assets(screenshot, payload, db)
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported screenshot type.")
 
+    return ScreenshotConfirmResponse(
+        screenshot_id=screenshot.id,
+        account_id=screenshot.account_id,
+        account_name=screenshot.account_name,
+        status=screenshot.status,
+        inserted_count=inserted_count,
+    )
+
+
+def _confirm_holdings(
+    screenshot: Screenshot,
+    payload: ScreenshotConfirmRequest,
+    db: Session,
+) -> int:
     try:
         recognized = HoldingRecognizedData.model_validate(payload.data)
     except ValidationError as exc:
@@ -164,10 +189,104 @@ def confirm_screenshot(
         db.rollback()
         raise HTTPException(status_code=500, detail="Database save failed. Please retry.") from exc
 
-    return ScreenshotConfirmResponse(
-        screenshot_id=screenshot.id,
-        account_id=screenshot.account_id,
-        account_name=screenshot.account_name,
-        status=screenshot.status,
-        inserted_count=len(recognized.items),
-    )
+    return len(recognized.items)
+
+
+def _confirm_transactions(
+    screenshot: Screenshot,
+    payload: ScreenshotConfirmRequest,
+    db: Session,
+) -> int:
+    try:
+        recognized = TransactionRecognizedData.model_validate(payload.data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid transactions data: {exc.errors()}") from exc
+
+    if not recognized.items:
+        raise HTTPException(status_code=400, detail="No transaction records to save.")
+    invalid_codes = [
+        item.stock_name or f"row {index + 1}"
+        for index, item in enumerate(recognized.items)
+        if not is_valid_stock_code(item.stock_code)
+    ]
+    if invalid_codes:
+        names = ", ".join(invalid_codes[:5])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Please fill valid 6-digit stock codes before saving: {names}",
+        )
+
+    try:
+        for item in recognized.items:
+            data = item.model_dump()
+            db.add(
+                Transaction(
+                    account_id=screenshot.account_id,
+                    account_name=screenshot.account_name,
+                    trade_time=data["trade_time"],
+                    stock_code=data["stock_code"],
+                    stock_name=data.get("stock_name"),
+                    direction=data["direction"],
+                    price=_safe_decimal(data.get("price")),
+                    quantity=_safe_decimal(data.get("quantity")),
+                    amount=_safe_decimal(data.get("amount")),
+                    fee=_safe_decimal(data.get("fee")),
+                    screenshot_id=screenshot.id,
+                )
+            )
+
+        screenshot.status = "confirmed"
+        screenshot.screenshot_type = "transactions"
+        screenshot.raw_ai_response = payload.data
+        update_stock_code_map_from_items(recognized.items)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database save failed. Please retry.") from exc
+
+    return len(recognized.items)
+
+
+def _confirm_assets(
+    screenshot: Screenshot,
+    payload: ScreenshotConfirmRequest,
+    db: Session,
+) -> int:
+    try:
+        recognized = AssetsRecognizedData.model_validate(payload.data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid assets data: {exc.errors()}") from exc
+
+    try:
+        row = db.scalar(
+            select(AssetsDaily).where(
+                AssetsDaily.account_id == screenshot.account_id,
+                AssetsDaily.snapshot_date == recognized.snapshot_date,
+            )
+        )
+        if row is None:
+            row = AssetsDaily(
+                account_id=screenshot.account_id,
+                account_name=screenshot.account_name,
+                snapshot_date=recognized.snapshot_date,
+                screenshot_id=screenshot.id,
+            )
+            db.add(row)
+
+        row.account_name = screenshot.account_name
+        row.total_assets = _safe_decimal(recognized.total_assets)
+        row.market_value = _safe_decimal(recognized.market_value)
+        row.cash_available = _safe_decimal(recognized.cash_available)
+        row.daily_profit_loss = _safe_decimal(recognized.daily_profit_loss)
+        row.total_profit_loss = _safe_decimal(recognized.total_profit_loss)
+        row.screenshot_id = screenshot.id
+
+        screenshot.status = "confirmed"
+        screenshot.screenshot_type = "assets"
+        screenshot.raw_ai_response = payload.data
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database save failed. Please retry.") from exc
+
+    return 1

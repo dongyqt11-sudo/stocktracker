@@ -11,6 +11,8 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    account_id: Mapped[str] = mapped_column(String, default="account_1", index=True, nullable=False)
+    account_name: Mapped[str] = mapped_column(String, default="Account 1", nullable=False)
     trade_time: Mapped[datetime] = mapped_column(DateTime, index=True, nullable=False)
     stock_code: Mapped[str] = mapped_column(String, index=True, nullable=False)
     stock_name: Mapped[str | None] = mapped_column(String, nullable=True)

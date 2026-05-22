@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analytics, holdings, screenshots
+from app.api import analytics, assets, dashboard, holdings, screenshots, transactions
 from app.config import get_settings
 from app.db import init_db
 
@@ -41,4 +41,7 @@ def debug_settings() -> dict[str, str | int | bool]:
 
 app.include_router(screenshots.router, prefix="/api")
 app.include_router(holdings.router, prefix="/api")
+app.include_router(transactions.router, prefix="/api")
+app.include_router(assets.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")

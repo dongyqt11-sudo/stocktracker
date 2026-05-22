@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, Integer, Numeric
+from sqlalchemy import Date, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -9,9 +9,12 @@ from app.db import Base
 
 class AssetsDaily(Base):
     __tablename__ = "assets_daily"
+    __table_args__ = (UniqueConstraint("account_id", "snapshot_date", name="uq_assets_daily_account_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    snapshot_date: Mapped[date] = mapped_column(Date, unique=True, index=True, nullable=False)
+    account_id: Mapped[str] = mapped_column(String, default="account_1", index=True, nullable=False)
+    account_name: Mapped[str] = mapped_column(String, default="Account 1", nullable=False)
+    snapshot_date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
     total_assets: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     market_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     cash_available: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)

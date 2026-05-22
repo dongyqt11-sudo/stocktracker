@@ -86,9 +86,16 @@ make frontend
 ## 阶段 2 进展
 
 - OCR 已支持自动判断持仓页、成交页、资产页。
-- 成交页会返回逐笔交易 JSON，暂未接入确认入库。
-- 资产页会返回资产快照 JSON，并在总资产与“持仓市值 + 可用现金”差额超过 1 元时给出提示，暂未接入确认入库。
-- 上传页可直接预览成交页和资产页的结构化 JSON，用于继续校准 OCR 规则。
+- 成交页会返回逐笔交易 JSON，并可确认写入 `transactions`。
+- 资产页会返回资产快照 JSON，并在总资产与“持仓市值 + 可用现金”差额超过 1 元时给出提示；确认后写入 `assets_daily`。
+- 新增交易查询、资产曲线、最新资产、Dashboard 汇总接口。
+
+阶段 2 API：
+
+- 交易流水：`GET /api/transactions?start=&end=&code=&direction=`
+- 资产曲线：`GET /api/assets/timeline?days=30`
+- 最新资产：`GET /api/assets/latest`
+- Dashboard 汇总：`GET /api/dashboard/summary`
 
 ## 清理测试数据
 

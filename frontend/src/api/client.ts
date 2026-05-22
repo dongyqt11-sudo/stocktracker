@@ -56,6 +56,48 @@ export type DashboardData = {
   recent_transactions: Array<Record<string, unknown>>;
 };
 
+export type TransactionRow = {
+  id: number;
+  account_id: string;
+  account_name: string;
+  trade_time: string;
+  stock_code: string;
+  stock_name: string | null;
+  direction: "buy" | "sell";
+  price: number | null;
+  quantity: number | null;
+  amount: number | null;
+  fee: number | null;
+  screenshot_id: number;
+};
+
+export type AssetsDailyRow = {
+  id: number;
+  account_id: string;
+  account_name: string;
+  snapshot_date: string;
+  total_assets: number | null;
+  market_value: number | null;
+  cash_available: number | null;
+  daily_profit_loss: number | null;
+  total_profit_loss: number | null;
+  screenshot_id: number;
+};
+
+export type DashboardSummaryData = Omit<DashboardData, "asset_curve" | "recent_transactions"> & {
+  summary: DashboardData["summary"] & {
+    change_vs_previous?: {
+      total_assets: number | null;
+      market_value: number | null;
+      cash_available: number | null;
+      daily_profit_loss: number | null;
+    };
+  };
+  assets_latest: AssetsDailyRow | null;
+  asset_curve: AssetsDailyRow[];
+  recent_transactions: TransactionRow[];
+};
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
@@ -104,4 +146,32 @@ export async function getLatestHoldings(accountId = "account_1"): Promise<Holdin
 
 export async function getDashboardData(accountId = "account_1"): Promise<DashboardData> {
   return request<DashboardData>(`/api/analytics/dashboard?account_id=${encodeURIComponent(accountId)}`);
+}
+
+export async function getDashboardSummary(accountId = "account_1", days = 30): Promise<DashboardSummaryData> {
+  return request<DashboardSummaryData>(`/api/dashboard/summary?account_id=${encodeURIComponent(accountId)}&days=${days}`);
+}
+
+export async function getTransactions(params: {
+  accountId?: string;
+  start?: string;
+  end?: string;
+  code?: string;
+  direction?: "buy" | "sell" | "";
+} = {}): Promise<TransactionRow[]> {
+  const search = new URLSearchParams();
+  search.set("account_id", params.accountId ?? "account_1");
+  if (params.start) search.set("start", params.start);
+  if (params.end) search.set("end", params.end);
+  if (params.code) search.set("code", params.code);
+  if (params.direction) search.set("direction", params.direction);
+  return request<TransactionRow[]>(`/api/transactions?${search.toString()}`);
+}
+
+export async function getAssetsTimeline(accountId = "account_1", days = 30): Promise<AssetsDailyRow[]> {
+  return request<AssetsDailyRow[]>(`/api/assets/timeline?account_id=${encodeURIComponent(accountId)}&days=${days}`);
+}
+
+export async function getLatestAssets(accountId = "account_1"): Promise<AssetsDailyRow | null> {
+  return request<AssetsDailyRow | null>(`/api/assets/latest?account_id=${encodeURIComponent(accountId)}`);
 }

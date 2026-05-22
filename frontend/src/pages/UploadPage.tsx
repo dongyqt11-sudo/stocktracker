@@ -10,7 +10,7 @@ import { cn } from "../lib/utils";
 
 type UploadPageProps = {
   account: Account;
-  onConfirmed: () => void;
+  onConfirmed: (screenshotType?: string) => void;
 };
 
 const columns: Array<{ key: keyof HoldingRow; label: string; numeric?: boolean }> = [
@@ -51,12 +51,14 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const canConfirm = useMemo(() => {
-    return Boolean(
-      screenshotId &&
-        recognizedData &&
-        recognizedData.screenshot_type === "holdings" &&
-        recognizedData.items?.length,
-    );
+    if (!screenshotId || !recognizedData || recognizedData.error) return false;
+    if (recognizedData.screenshot_type === "holdings" || recognizedData.screenshot_type === "transactions") {
+      return Boolean(recognizedData.items?.length);
+    }
+    if (recognizedData.screenshot_type === "assets") {
+      return Boolean(recognizedData.snapshot_date);
+    }
+    return false;
   }, [recognizedData, screenshotId]);
 
   const processFile = useCallback(async (file: File) => {
@@ -140,7 +142,8 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
 
   async function handleConfirm() {
     if (!screenshotId || !recognizedData) return;
-    const invalidCode = (recognizedData.items ?? []).some((item) => !isSixDigitCode(item.stock_code));
+    const needsCodeCheck = recognizedData.screenshot_type === "holdings" || recognizedData.screenshot_type === "transactions";
+    const invalidCode = needsCodeCheck && (recognizedData.items ?? []).some((item) => !isSixDigitCode(item.stock_code));
     if (invalidCode) {
       setError("请先补齐 6 位股票代码，再确认入库。确认后系统会把“名称-代码”记到本地，下次自动带出。");
       return;
@@ -149,7 +152,7 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
     setIsConfirming(true);
     try {
       await confirmScreenshot(screenshotId, recognizedData);
-      onConfirmed();
+      onConfirmed(recognizedData.screenshot_type);
     } catch (err) {
       setError(err instanceof Error ? err.message : "确认入库失败");
     } finally {
@@ -308,7 +311,7 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
           ) : recognizedData ? (
             <div className="space-y-4">
               <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                已识别为：{recognizedData.screenshot_type || "未知类型"}。本步骤先用于校验 OCR，成交页和资产页会在下一步接入确认入库。
+                已识别为：{recognizedData.screenshot_type || "未知类型"}。请检查 JSON 结果，确认后会写入本地数据库。
               </div>
               {recognizedData.asset_check_warning ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
