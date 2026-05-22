@@ -46,6 +46,9 @@ def _ensure_account_columns() -> None:
         for table in inspector.get_table_names()
     }
     migrations = {
+        "notes": [
+            ("title", "VARCHAR NOT NULL DEFAULT ''"),
+        ],
         "screenshots": [
             ("account_id", "VARCHAR NOT NULL DEFAULT 'account_1'"),
             ("account_name", "VARCHAR NOT NULL DEFAULT 'Account 1'"),

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analytics, assets, consistency, dashboard, holdings, screenshots, transactions
+from app.api import analytics, assets, consistency, dashboard, holdings, notes, screenshots, transactions
 from app.config import get_settings
 from app.db import init_db
 
@@ -46,3 +46,4 @@ app.include_router(assets.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(consistency.router, prefix="/api")
+app.include_router(notes.router, prefix="/api")

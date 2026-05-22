@@ -18,6 +18,7 @@ import { cn } from "./lib/utils";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import DashboardPage from "./pages/DashboardPage";
 import HoldingsPage from "./pages/HoldingsPage";
+import NotesPage from "./pages/NotesPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import UploadPage from "./pages/UploadPage";
 
@@ -82,6 +83,9 @@ export default function App() {
     }
     if (page === "analytics") {
       return <AnalyticsPage refreshKey={refreshKey} account={activeAccount} />;
+    }
+    if (page === "notes") {
+      return <NotesPage refreshKey={refreshKey} account={activeAccount} />;
     }
     if (page === "upload") {
       return (

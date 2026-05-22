@@ -10,6 +10,7 @@ class Note(Base):
     __tablename__ = "notes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String, default="", nullable=False)
     note_date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     related_stock_code: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -238,3 +238,50 @@ export type AnalyticsOverview = {
 export async function getAnalyticsOverview(accountId = "account_1"): Promise<AnalyticsOverview> {
   return request<AnalyticsOverview>(`/api/analytics/overview?account_id=${encodeURIComponent(accountId)}`);
 }
+
+export type NoteRow = {
+  id: number;
+  title: string;
+  note_date: string;
+  content: string;
+  related_stock_code: string | null;
+  content_preview: string;
+  created_at: string;
+};
+
+export async function getNotes(stockCode?: string): Promise<NoteRow[]> {
+  const query = stockCode ? `?stock_code=${encodeURIComponent(stockCode)}` : "";
+  return request<NoteRow[]>(`/api/notes${query}`);
+}
+
+export async function getNote(noteId: number): Promise<NoteRow> {
+  return request<NoteRow>(`/api/notes/${noteId}`);
+}
+
+export async function createNote(data: {
+  title: string;
+  note_date: string;
+  content: string;
+  related_stock_code?: string;
+}): Promise<NoteRow> {
+  return request<NoteRow>("/api/notes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateNote(
+  noteId: number,
+  data: { title?: string; note_date?: string; content?: string; related_stock_code?: string | null },
+): Promise<NoteRow> {
+  return request<NoteRow>(`/api/notes/${noteId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteNote(noteId: number): Promise<{ status: string }> {
+  return request<{ status: string }>(`/api/notes/${noteId}`, { method: "DELETE" });
+}
