@@ -93,10 +93,18 @@ make frontend
 
 阶段 2 API：
 
-- 交易流水：`GET /api/transactions?start=&end=&code=&direction=`
-- 资产曲线：`GET /api/assets/timeline?days=30`
-- 最新资产：`GET /api/assets/latest`
-- Dashboard 汇总：`GET /api/dashboard/summary`
+- 交易流水：`GET /api/transactions?account_id=&start=&end=&code=&direction=`
+- 资产曲线：`GET /api/assets/timeline?account_id=&days=30`
+- 最新资产：`GET /api/assets/latest?account_id=`
+- Dashboard 汇总：`GET /api/dashboard/summary?account_id=&days=30`
+- 数据一致性校验：`GET /api/dashboard/consistency?account_id=`
+
+阶段 2 页面：
+
+- Dashboard：资产指标卡、资产曲线、持仓概览、最近交易、识别状态、一致性警告
+- 交易流水：筛选、CSV 导出、虚拟滚动
+- 资产分析：大图资产曲线，三线叠加、hover 数值
+- 上传页：支持持仓/成交/资产三种截图 OCR 识别与入库
 
 ## 清理测试数据
 
