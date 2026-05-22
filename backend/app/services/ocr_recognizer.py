@@ -215,13 +215,23 @@ def _recognize_holdings(lines: list[dict[str, Any]]) -> dict[str, Any]:
     if not items:
         return {"error": "OCR 已识别文字，但未能按持仓页布局解析出持仓行", "ocr_lines": _ocr_payload(lines)}
 
-    asset_fields = {
+    kw_assets = {
         "total_assets": _value_near_keyword(lines, ("总资产", "资产总值")),
         "market_value": _value_near_keyword(lines, ("持仓市值", "证券市值", "股票市值")),
         "cash_available": _value_near_keyword(lines, ("可用资金", "可用现金", "可取资金")),
         "daily_profit_loss": _value_near_keyword(lines, ("当日盈亏", "今日盈亏", "日盈亏")),
         "total_profit_loss": _value_near_keyword(lines, ("累计盈亏", "总盈亏", "历史盈亏")),
     }
+
+    # Fallback to position-based if keyword matching fails (common with garbled OCR)
+    if kw_assets["total_assets"] is None or kw_assets["market_value"] is None or kw_assets["cash_available"] is None:
+        pos = _extract_asset_by_position(lines)
+        if kw_assets["total_assets"] is None:
+            kw_assets["total_assets"] = pos.get("total_assets")
+        if kw_assets["market_value"] is None:
+            kw_assets["market_value"] = pos.get("market_value")
+        if kw_assets["cash_available"] is None:
+            kw_assets["cash_available"] = pos.get("cash_available")
 
     result: dict[str, Any] = {
         "screenshot_type": "holdings",
@@ -230,8 +240,9 @@ def _recognize_holdings(lines: list[dict[str, Any]]) -> dict[str, Any]:
         "recognition_method": "windows_ocr",
         "ocr_lines": _ocr_payload(lines),
     }
-    if any(v is not None for v in asset_fields.values()):
-        result["asset_fields"] = {k: v for k, v in asset_fields.items() if v is not None}
+    asset_fields = {k: v for k, v in kw_assets.items() if v is not None}
+    if asset_fields:
+        result["asset_fields"] = asset_fields
     return result
 
 
@@ -397,6 +408,99 @@ def _value_near_keyword(lines: list[dict[str, Any]], aliases: tuple[str, ...]) -
     return None
 
 
+def _extract_asset_by_position(lines: list[dict[str, Any]]) -> dict[str, float | None]:
+    """Extract asset fields by position when OCR text is garbled but numbers are correct.
+
+    Typical layout of Chinese trading app asset summary:
+      Row 1 (upper):   [total_assets]        [daily_profit_loss]
+      Row 2 (lower):   [market_value]         [cash_available]
+
+    We group numbers into two rows by y-coordinate, then validate via
+    total_assets ≈ market_value + cash_available.
+    """
+    # Find holdings section start
+    holding_start = 1900
+    for line in lines:
+        if line["y"] >= 1000 and line["x"] < 200:
+            holding_start = min(holding_start, line["y"])
+
+    # Collect all numbers in asset area, grouped by row
+    rows: dict[int, list[tuple[float, float]]] = {}
+    for line in lines:
+        if line["y"] < 500 or line["y"] >= holding_start - 40:
+            continue
+        value = _to_number(line["text"])
+        if value is None:
+            continue
+        # Find which row this belongs to (round y to nearest 100)
+        row_key = int(line["y"] / 100)
+        if row_key not in rows:
+            rows[row_key] = []
+        rows[row_key].append((line["x"], value))
+
+    if len(rows) < 2:
+        return {}
+
+    sorted_rows = sorted(rows.items())
+
+    # For each row, get left (x<350) and right (x>=350) values
+    parsed: list[dict[str, float | None]] = []
+    for _key, entries in sorted_rows:
+        left = sorted([v for x, v in entries if x < 350], key=lambda v: -abs(v))
+        right = sorted([v for x, v in entries if x >= 350], key=lambda v: -abs(v))
+        parsed.append({
+            "left": left[0] if left else None,
+            "right": right[0] if right else None,
+        })
+
+    # Find the best row pair: total = left_upper, mv = left_lower, cash = right_lower
+    # Verify: left_upper ≈ left_lower + right_lower
+    best: dict[str, float | None] = {}
+    for i in range(len(parsed)):
+        for j in range(i + 1, len(parsed)):
+            upper = parsed[i]
+            lower = parsed[j]
+            total = upper["left"]
+            mv = lower["left"]
+            cash = lower["right"]
+            if total is None or mv is None or cash is None:
+                # Try: total on upper-left, mv on upper-right, cash on lower-*
+                if upper["left"] is not None and upper["right"] is not None and lower["left"] is not None:
+                    if abs(upper["right"] + lower["left"] - upper["left"]) / max(upper["left"], 1) < 0.02:
+                        best = {"total_assets": upper["left"], "market_value": lower["left"],
+                                "cash_available": upper["right"],
+                                "daily_profit_loss": lower["right"]}
+                        return best
+                continue
+
+            if abs(total - mv - cash) / max(total, 1) < 0.02:
+                best = {"total_assets": total, "market_value": mv, "cash_available": cash,
+                        "daily_profit_loss": upper["right"]}
+                return best
+            # Alternative: cash might be 0 or very small, so compute it
+            if abs(total - mv) / max(total, 1) < 0.5:
+                best = {"total_assets": total, "market_value": mv,
+                        "cash_available": round(total - mv, 2),
+                        "daily_profit_loss": upper["right"]}
+                return best
+
+    # Last fallback: use the first row's left as total, second row's left as mv
+    for p in parsed:
+        if p["left"] is None:
+            continue
+        if "total_assets" not in best:
+            best["total_assets"] = p["left"]
+            best["daily_profit_loss"] = p["right"]
+        elif "market_value" not in best:
+            best["market_value"] = p["left"]
+            best["cash_available"] = p["right"]
+            if best.get("total_assets") and best["market_value"]:
+                best["cash_available"] = round(best["total_assets"] - best["market_value"], 2)
+            return best
+
+    return best
+
+
 def _recognize_assets(lines: list[dict[str, Any]]) -> dict[str, Any]:
     text = _joined_text(lines)
     total_assets = _value_near_keyword(lines, ("总资产", "资产总值"))
@@ -404,6 +508,15 @@ def _recognize_assets(lines: list[dict[str, Any]]) -> dict[str, Any]:
     cash_available = _value_near_keyword(lines, ("可用资金", "可用现金", "可取资金"))
     daily_profit_loss = _value_near_keyword(lines, ("当日盈亏", "今日盈亏", "日盈亏"))
     total_profit_loss = _value_near_keyword(lines, ("累计盈亏", "总盈亏", "历史盈亏"))
+
+    if total_assets is None or market_value is None or cash_available is None:
+        pos = _extract_asset_by_position(lines)
+        if total_assets is None:
+            total_assets = pos.get("total_assets")
+        if market_value is None:
+            market_value = pos.get("market_value")
+        if cash_available is None:
+            cash_available = pos.get("cash_available")
 
     result: dict[str, Any] = {
         "screenshot_type": "assets",
