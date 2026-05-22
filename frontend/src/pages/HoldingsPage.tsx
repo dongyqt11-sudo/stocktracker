@@ -5,7 +5,8 @@ import { Account, AssetsDailyRow, getLatestAssets, getLatestHoldings, HoldingRow
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Table, Td, Th } from "../components/ui/table";
-import { formatCurrency, formatNumber, profitClass, signedCurrency } from "../lib/format";
+import { formatCurrency, formatNumber, marketTag, profitBadge, signedCurrency } from "../lib/format";
+import { cn } from "../lib/utils";
 
 type HoldingsPageProps = {
   refreshKey: number;
@@ -42,56 +43,63 @@ export default function HoldingsPage({ refreshKey, account }: HoldingsPageProps)
   const snapshotDate = rows[0]?.snapshot_date ?? "--";
   const totalMarketValue = useMemo(() => rows.reduce((sum, row) => sum + (row.market_value ?? 0), 0), [rows]);
   const totalProfitLoss = useMemo(() => rows.reduce((sum, row) => sum + (row.profit_loss ?? 0), 0), [rows]);
+  const totalQuantity = useMemo(() => rows.reduce((sum, row) => sum + (row.quantity ?? 0), 0), [rows]);
+
+  const plClass = totalProfitLoss > 0 ? "text-up" : totalProfitLoss < 0 ? "text-down" : "text-text-primary";
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm font-semibold text-slate-500">快照日期</div>
-            <div className="mt-3 text-2xl font-bold text-slate-950">{snapshotDate}</div>
+    <div className="space-y-5">
+      {/* 顶部汇总卡片 */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Card className="shadow-card">
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold text-text-secondary">快照日期</div>
+            <div className="mt-2 text-xl font-bold text-text-primary">{snapshotDate}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm font-semibold text-slate-500">总资产</div>
-            <div className="mt-3 text-2xl font-bold text-slate-950">{formatCurrency(assets?.total_assets)}</div>
+        <Card className="shadow-card">
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold text-text-secondary">总资产</div>
+            <div className="mt-2 text-xl font-bold tabular-nums text-text-primary">{formatCurrency(assets?.total_assets)}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm font-semibold text-slate-500">持仓市值</div>
-            <div className="mt-3 text-2xl font-bold text-slate-950">{formatCurrency(totalMarketValue)}</div>
+        <Card className="shadow-card">
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold text-text-secondary">持仓市值</div>
+            <div className="mt-2 text-xl font-bold tabular-nums text-text-primary">{formatCurrency(totalMarketValue)}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm font-semibold text-slate-500">可用现金</div>
-            <div className="mt-3 text-2xl font-bold text-slate-950">{formatCurrency(assets?.cash_available)}</div>
+        <Card className="shadow-card">
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold text-text-secondary">可用现金</div>
+            <div className="mt-2 text-xl font-bold tabular-nums text-text-primary">{formatCurrency(assets?.cash_available)}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm font-semibold text-slate-500">浮动盈亏</div>
-            <div className={`mt-3 text-2xl font-bold ${profitClass(totalProfitLoss)}`}>{signedCurrency(totalProfitLoss)}</div>
+        <Card className="shadow-card">
+          <CardContent className="p-5">
+            <div className="text-xs font-semibold text-text-secondary">浮动盈亏</div>
+            <div className={cn("mt-2 text-xl font-bold tabular-nums", plClass)}>{signedCurrency(totalProfitLoss)}</div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>最新持仓 - {account.name}</CardTitle>
-          <Button variant="outline" onClick={() => void loadRows()} disabled={isLoading}>
-            <RefreshCcw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+      {/* 持仓表格 */}
+      <Card className="shadow-card">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle>最新持仓 · {account.name}</CardTitle>
+          <Button variant="outline" onClick={() => void loadRows()} disabled={isLoading} className="h-9">
+            <RefreshCcw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             刷新
           </Button>
         </CardHeader>
-        <CardContent>
-          {error ? <div className="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-          <div className="overflow-x-auto rounded-lg border border-slate-100">
+        <CardContent className="p-0">
+          {error ? (
+            <div className="mx-6 mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          ) : null}
+          <div className="overflow-x-auto">
             <Table>
-              <thead className="bg-slate-50">
-                <tr>
+              <thead>
+                <tr className="border-b border-[var(--border)]">
                   <Th>代码</Th>
                   <Th>名称</Th>
                   <Th className="text-right">数量</Th>
@@ -99,30 +107,64 @@ export default function HoldingsPage({ refreshKey, account }: HoldingsPageProps)
                   <Th className="text-right">现价</Th>
                   <Th className="text-right">市值</Th>
                   <Th className="text-right">盈亏</Th>
-                  <Th className="text-right">盈亏%</Th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={`${row.snapshot_date}-${row.stock_code}-${row.id ?? ""}`}>
-                    <Td className="font-semibold text-slate-800">{row.stock_code}</Td>
-                    <Td>{row.stock_name}</Td>
-                    <Td className="text-right">{formatNumber(row.quantity)}</Td>
-                    <Td className="text-right">{formatNumber(row.cost_price)}</Td>
-                    <Td className="text-right">{formatNumber(row.current_price)}</Td>
-                    <Td className="text-right">{formatCurrency(row.market_value)}</Td>
-                    <Td className={`text-right font-semibold ${profitClass(row.profit_loss)}`}>{signedCurrency(row.profit_loss)}</Td>
-                    <Td className={`text-right font-semibold ${profitClass(row.profit_loss_pct)}`}>{formatNumber(row.profit_loss_pct, "%")}</Td>
-                  </tr>
-                ))}
+                {rows.map((row, i) => {
+                  const tag = marketTag(row.stock_code);
+                  return (
+                    <tr
+                      key={`${row.snapshot_date}-${row.stock_code}-${row.id ?? ""}`}
+                      className={cn(
+                        "transition-colors hover:bg-[var(--bg-hover)]",
+                        i % 2 === 1 ? "bg-[var(--bg-stripe)]" : "bg-[var(--bg-card)]",
+                      )}
+                    >
+                      <Td className="font-mono text-sm font-semibold tracking-wide text-text-primary">{row.stock_code}</Td>
+                      <Td>
+                        <span className="text-text-primary">{row.stock_name ?? "--"}</span>
+                        {tag ? (
+                          <span className="ml-2 inline-flex rounded bg-[var(--border-light)] px-1.5 py-0.5 text-[11px] font-semibold text-text-tertiary">
+                            {tag}
+                          </span>
+                        ) : null}
+                      </Td>
+                      <Td className="text-right tabular-nums">{formatNumber(row.quantity)}</Td>
+                      <Td className="text-right tabular-nums">{formatCurrency(row.cost_price)}</Td>
+                      <Td className="text-right tabular-nums">{formatCurrency(row.current_price)}</Td>
+                      <Td className="text-right tabular-nums font-semibold">{formatCurrency(row.market_value)}</Td>
+                      <Td className="text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          {profitBadge(row.profit_loss)}
+                          <span className={cn("text-xs tabular-nums", row.profit_loss_pct && row.profit_loss_pct > 0 ? "text-up" : row.profit_loss_pct && row.profit_loss_pct < 0 ? "text-down" : "text-text-tertiary")}>
+                            {formatNumber(row.profit_loss_pct, "%")}
+                          </span>
+                        </div>
+                      </Td>
+                    </tr>
+                  );
+                })}
                 {!rows.length && !isLoading ? (
                   <tr>
-                    <Td colSpan={8} className="py-12 text-center text-slate-500">
+                    <Td colSpan={7} className="py-16 text-center text-text-tertiary">
                       暂无持仓数据
                     </Td>
                   </tr>
                 ) : null}
               </tbody>
+              {rows.length > 0 ? (
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--border)] bg-[var(--bg-stripe)]">
+                    <Td className="text-sm font-bold text-text-primary">合计</Td>
+                    <Td>{rows.length} 只</Td>
+                    <Td className="text-right tabular-nums font-bold">{formatNumber(totalQuantity)}</Td>
+                    <Td />
+                    <Td />
+                    <Td className="text-right tabular-nums font-bold">{formatCurrency(totalMarketValue)}</Td>
+                    <Td className="text-right">{profitBadge(totalProfitLoss)}</Td>
+                  </tr>
+                </tfoot>
+              ) : null}
             </Table>
           </div>
         </CardContent>

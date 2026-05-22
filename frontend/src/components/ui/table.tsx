@@ -7,9 +7,22 @@ export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTab
 }
 
 export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
-  return <th className={cn("border-b border-border px-3 py-2 text-left font-medium text-slate-500", className)} {...props} />;
+  return (
+    <th
+      className={cn(
+        "h-12 border-b border-[var(--border)] px-4 text-left text-xs font-semibold text-text-secondary",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 export function Td({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("border-b border-slate-100 px-3 py-2 align-middle", className)} {...props} />;
+  return (
+    <td
+      className={cn("h-[52px] border-b border-[var(--border-light)] px-4 align-middle text-text-primary", className)}
+      {...props}
+    />
+  );
 }

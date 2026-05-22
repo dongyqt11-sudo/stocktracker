@@ -27,7 +27,7 @@ import { Account, ConsistencyResult, DashboardSummaryData, getConsistencyCheck, 
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Table, Td, Th } from "../components/ui/table";
-import { formatCurrency, formatNumber, profitClass, signedCurrency } from "../lib/format";
+import { formatCurrency, formatNumber, marketTag, profitBadge, profitClass, signedCurrency } from "../lib/format";
 import { cn } from "../lib/utils";
 
 type DashboardPageProps = {
@@ -398,14 +398,14 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
               <ChevronRight className="h-4 w-4" />
             </Button>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-hidden rounded-lg border border-slate-100">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
               <Table>
-                <thead className="bg-slate-50">
-                  <tr>
-                    <Th>股票代码</Th>
-                    <Th>股票名称</Th>
-                    <Th className="text-right">持仓数量</Th>
+                <thead>
+                  <tr className="border-b border-[var(--border)]">
+                    <Th>代码</Th>
+                    <Th>名称</Th>
+                    <Th className="text-right">数量</Th>
                     <Th className="text-right">成本价</Th>
                     <Th className="text-right">现价</Th>
                     <Th className="text-right">市值</Th>
@@ -413,23 +413,36 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
                   </tr>
                 </thead>
                 <tbody>
-                  {holdings.slice(0, 5).map((row) => (
-                    <tr key={`${row.snapshot_date}-${row.stock_code}-${row.id}`}>
-                      <Td className="font-semibold tabular-nums text-slate-700">{row.stock_code}</Td>
-                      <Td>{row.stock_name}</Td>
-                      <Td className="text-right tabular-nums">{formatNumber(row.quantity)}</Td>
-                      <Td className="text-right tabular-nums">{formatNumber(row.cost_price)}</Td>
-                      <Td className="text-right tabular-nums">{formatNumber(row.current_price)}</Td>
-                      <Td className="text-right tabular-nums">{formatCurrency(row.market_value)}</Td>
-                      <Td className={cn("text-right font-semibold tabular-nums", profitClass(row.profit_loss))}>
-                        {signedCurrency(row.profit_loss)}
-                        <div className={cn("text-xs", profitClass(row.profit_loss_pct))}>{formatNumber(row.profit_loss_pct, "%")}</div>
-                      </Td>
-                    </tr>
-                  ))}
+                  {holdings.slice(0, 5).map((row, i) => {
+                    const tag = marketTag(row.stock_code);
+                    return (
+                      <tr
+                        key={`${row.snapshot_date}-${row.stock_code}-${row.id}`}
+                        className={cn(
+                          "transition-colors hover:bg-[var(--bg-hover)]",
+                          i % 2 === 1 ? "bg-[var(--bg-stripe)]" : "bg-[var(--bg-card)]",
+                        )}
+                      >
+                        <Td className="font-mono text-sm font-semibold tracking-wide text-text-primary">{row.stock_code}</Td>
+                        <Td>
+                          <span>{row.stock_name ?? "--"}</span>
+                          {tag ? (
+                            <span className="ml-1.5 inline-flex rounded bg-[var(--border-light)] px-1.5 py-0.5 text-[11px] font-semibold text-text-tertiary">
+                              {tag}
+                            </span>
+                          ) : null}
+                        </Td>
+                        <Td className="text-right tabular-nums">{formatNumber(row.quantity)}</Td>
+                        <Td className="text-right tabular-nums">{formatCurrency(row.cost_price)}</Td>
+                        <Td className="text-right tabular-nums">{formatCurrency(row.current_price)}</Td>
+                        <Td className="text-right tabular-nums font-semibold">{formatCurrency(row.market_value)}</Td>
+                        <Td className="text-right">{profitBadge(row.profit_loss)}</Td>
+                      </tr>
+                    );
+                  })}
                   {!holdings.length ? (
                     <tr>
-                      <Td colSpan={7} className="py-12 text-center text-slate-500">
+                      <Td colSpan={7} className="py-16 text-center text-text-tertiary">
                         暂无持仓数据
                       </Td>
                     </tr>
