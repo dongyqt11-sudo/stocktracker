@@ -47,6 +47,8 @@ def _ensure_account_columns() -> None:
     }
     migrations = {
         "notes": [
+            ("account_id", "VARCHAR NOT NULL DEFAULT 'account_1'"),
+            ("account_name", "VARCHAR NOT NULL DEFAULT 'Account 1'"),
             ("title", "VARCHAR NOT NULL DEFAULT ''"),
         ],
         "screenshots": [

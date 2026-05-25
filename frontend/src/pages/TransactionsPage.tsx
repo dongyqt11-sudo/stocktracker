@@ -30,6 +30,14 @@ function TradeBadge({ direction }: { direction: "buy" | "sell" }) {
   );
 }
 
+function escapeCsvCell(value: unknown) {
+  const text = String(value ?? "");
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 function exportCSV(rows: TransactionRow[]) {
   const headers = ["时间", "股票代码", "股票名称", "操作", "数量", "价格", "金额", "手续费"];
   const lines = rows.map((row) =>
@@ -42,7 +50,7 @@ function exportCSV(rows: TransactionRow[]) {
       row.price ?? "",
       row.amount ?? "",
       row.fee ?? "",
-    ].join(","),
+    ].map(escapeCsvCell).join(","),
   );
   const csv = "﻿" + headers.join(",") + "\n" + lines.join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });

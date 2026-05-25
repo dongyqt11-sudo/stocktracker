@@ -12,7 +12,7 @@ type NotesPageProps = {
   account: Account;
 };
 
-export default function NotesPage({ refreshKey }: NotesPageProps) {
+export default function NotesPage({ refreshKey, account }: NotesPageProps) {
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,17 +30,25 @@ export default function NotesPage({ refreshKey }: NotesPageProps) {
   const loadNotes = useCallback(async () => {
     setIsLoading(true);
     try {
-      setNotes(await getNotes(stockFilter || undefined));
+      setNotes(await getNotes(account.id, stockFilter || undefined));
     } catch {
       setNotes([]);
     } finally {
       setIsLoading(false);
     }
-  }, [stockFilter]);
+  }, [account.id, stockFilter]);
 
   useEffect(() => {
     void loadNotes();
   }, [loadNotes, refreshKey]);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setEditTitle("");
+    setEditDate(new Date().toISOString().slice(0, 10));
+    setEditContent("");
+    setEditStock("");
+  }, [account.id]);
 
   function selectNote(note: NoteRow) {
     setSelectedId(note.id);
@@ -62,14 +70,14 @@ export default function NotesPage({ refreshKey }: NotesPageProps) {
     setIsSaving(true);
     try {
       if (selectedId !== null) {
-        await updateNote(selectedId, {
+        await updateNote(selectedId, account.id, {
           title: editTitle,
           note_date: editDate,
           content: editContent,
           related_stock_code: editStock || null,
         });
       } else {
-        const created = await createNote({
+        const created = await createNote(account, {
           title: editTitle || "无标题",
           note_date: editDate,
           content: editContent,
@@ -87,7 +95,7 @@ export default function NotesPage({ refreshKey }: NotesPageProps) {
     if (selectedId === null) return;
     if (!confirm("确定删除这条笔记？")) return;
     try {
-      await deleteNote(selectedId);
+      await deleteNote(selectedId, account.id);
       setSelectedId(null);
       setEditTitle("");
       setEditContent("");

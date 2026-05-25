@@ -10,6 +10,8 @@ class Note(Base):
     __tablename__ = "notes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    account_id: Mapped[str] = mapped_column(String, default="account_1", index=True, nullable=False)
+    account_name: Mapped[str] = mapped_column(String, default="Account 1", nullable=False)
     title: Mapped[str] = mapped_column(String, default="", nullable=False)
     note_date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

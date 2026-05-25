@@ -143,6 +143,10 @@ export default function UploadPage({ account, onConfirmed }: UploadPageProps) {
 
   async function handleConfirm() {
     if (!screenshotId || !recognizedData) return;
+    if (recognizedData.screenshot_type === "holdings") {
+      const ok = window.confirm("确认后会覆盖当前账户同一天的持仓快照。请确认表格内容已经校对完整。");
+      if (!ok) return;
+    }
     const needsCodeCheck = recognizedData.screenshot_type === "holdings" || recognizedData.screenshot_type === "transactions";
     const invalidCode = needsCodeCheck && (recognizedData.items ?? []).some((item) => !isSixDigitCode(item.stock_code));
     if (invalidCode) {

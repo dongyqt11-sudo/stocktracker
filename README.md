@@ -98,6 +98,7 @@ make frontend
 - 最新资产：`GET /api/assets/latest?account_id=`
 - Dashboard 汇总：`GET /api/dashboard/summary?account_id=&days=30`
 - 数据一致性校验：`GET /api/dashboard/consistency?account_id=`
+- 笔记：`GET/POST /api/notes?account_id=`，编辑和删除会校验当前账户
 
 阶段 2 页面：
 
@@ -105,6 +106,7 @@ make frontend
 - 交易流水：筛选、CSV 导出、虚拟滚动
 - 资产分析：大图资产曲线，三线叠加、hover 数值
 - 上传页：支持持仓/成交/资产三种截图 OCR 识别与入库
+- 笔记页：按账户隔离，支持列表、筛选、新建、编辑和删除
 
 ## 清理测试数据
 
@@ -123,6 +125,7 @@ python scripts/clean_test_data.py
 - 数据库：`backend/data/stocktracker.db`
 - 原始截图：`backend/data/screenshots/`
 - 股票代码映射：`backend/data/stock_code_map.json`
+- 笔记、成交、资产、持仓都按当前账户分开保存
 
 备份时复制整个 `backend/data/` 目录即可。恢复时关闭服务，把备份目录覆盖回 `backend/data/`。
 
