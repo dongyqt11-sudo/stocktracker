@@ -23,6 +23,10 @@ from app.schemas.screenshots import (
     ScreenshotUploadResponse,
 )
 from app.schemas.transactions import TransactionRecognizedData
+from app.services.holding_normalizer import (
+    normalize_holding_numbers,
+    normalize_holding_recognized_data,
+)
 from app.services.ocr_recognizer import recognize_screenshot_by_ocr
 from app.services.stock_code_map import (
     apply_stock_code_suggestions,
@@ -82,6 +86,8 @@ def upload_screenshot(
     recognized_data = recognize_screenshot_by_ocr(str(path), hint_type=hint_type)
     if not recognized_data.get("error") and recognized_data.get("screenshot_type") in {"holdings", "transactions"}:
         recognized_data = apply_stock_code_suggestions(recognized_data, _build_stock_code_map(db))
+    if not recognized_data.get("error") and recognized_data.get("screenshot_type") == "holdings":
+        recognized_data = normalize_holding_recognized_data(recognized_data)
 
     screenshot = Screenshot(
         account_id=account_id,
@@ -166,8 +172,10 @@ def _confirm_holdings(
             Holding.snapshot_date == recognized.snapshot_date,
         ).delete()
 
+        normalized_items: list[dict[str, Any]] = []
         for item in recognized.items:
-            data = item.model_dump()
+            data = normalize_holding_numbers(item.model_dump())
+            normalized_items.append(data)
             db.add(
                 Holding(
                     account_id=screenshot.account_id,
@@ -209,7 +217,9 @@ def _confirm_holdings(
 
         screenshot.status = "confirmed"
         screenshot.screenshot_type = "holdings"
-        screenshot.raw_ai_response = payload.data
+        normalized_payload = dict(payload.data)
+        normalized_payload["items"] = normalized_items
+        screenshot.raw_ai_response = normalized_payload
         update_stock_code_map_from_items(recognized.items)
         db.commit()
     except Exception as exc:
