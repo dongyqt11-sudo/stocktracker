@@ -54,6 +54,7 @@ def consistency_check(
         }
 
     issues: list[dict[str, Any]] = []
+    inferred_changes: list[dict[str, Any]] = []
 
     for previous_date, current_date in zip(snapshot_dates, snapshot_dates[1:]):
         previous_holdings = _holdings_by_date(db, account_id, previous_date)
@@ -89,11 +90,7 @@ def consistency_check(
             previous_qty = _float(previous_holdings[code].quantity) if code in previous_holdings else 0.0
             actual_qty = _float(current_holdings[code].quantity) if code in current_holdings else 0.0
             net_qty = txn_net.get(code, 0.0)
-            expected_qty = round(previous_qty + net_qty, 2)
-            diff = round(expected_qty - actual_qty, 2)
-            if abs(diff) < 1:
-                continue
-
+            actual_delta = round(actual_qty - previous_qty, 2)
             stock_name = (
                 current_holdings[code].stock_name
                 if code in current_holdings
@@ -101,10 +98,33 @@ def consistency_check(
                 if code in previous_holdings
                 else None
             )
+
+            if abs(net_qty) < 1 and abs(actual_delta) >= 1:
+                inferred_changes.append(
+                    {
+                        "stock_code": code,
+                        "stock_name": stock_name,
+                        "direction": "buy" if actual_delta > 0 else "sell",
+                        "previous_quantity": previous_qty,
+                        "current_quantity": actual_qty,
+                        "quantity_change": actual_delta,
+                        "window_start": previous_date.isoformat(),
+                        "window_end": current_date.isoformat(),
+                        "message": (
+                            f"{previous_date.isoformat()} 到 {current_date.isoformat()}："
+                            f"持仓从 {previous_qty:.0f} 股变为 {actual_qty:.0f} 股，"
+                            f"系统自动推算变化 {actual_delta:+.0f} 股。"
+                        ),
+                    }
+                )
+                continue
+
+            expected_qty = round(previous_qty + net_qty, 2)
+            diff = round(expected_qty - actual_qty, 2)
+            if abs(diff) < 1:
+                continue
             if code not in current_holdings and abs(expected_qty) >= 1:
                 issue_type = "missing_holding"
-            elif abs(net_qty) < 1:
-                issue_type = "missing_transaction"
             else:
                 issue_type = "quantity_mismatch"
 
@@ -130,4 +150,6 @@ def consistency_check(
         "account_id": account_id,
         "issue_count": len(issues),
         "issues": issues,
+        "inferred_count": len(inferred_changes),
+        "inferred_changes": inferred_changes,
     }

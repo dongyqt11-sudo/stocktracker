@@ -194,10 +194,24 @@ export type ConsistencyIssue = {
   difference: number;
 };
 
+export type InferredHoldingChange = {
+  stock_code: string;
+  stock_name: string | null;
+  direction: "buy" | "sell";
+  previous_quantity: number;
+  current_quantity: number;
+  quantity_change: number;
+  window_start: string;
+  window_end: string;
+  message: string;
+};
+
 export type ConsistencyResult = {
   account_id: string;
   issue_count: number;
   issues: ConsistencyIssue[];
+  inferred_count?: number;
+  inferred_changes?: InferredHoldingChange[];
 };
 
 export async function getConsistencyCheck(accountId = "account_1"): Promise<ConsistencyResult> {

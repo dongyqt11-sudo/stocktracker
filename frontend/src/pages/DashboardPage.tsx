@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Calculator,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -197,6 +198,7 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
   const [data, setData] = useState<DashboardSummaryData | null>(null);
   const [consistency, setConsistency] = useState<ConsistencyResult | null>(null);
   const [showConsistencyDetails, setShowConsistencyDetails] = useState(false);
+  const [showInferredDetails, setShowInferredDetails] = useState(false);
   const rangeDays = rangeMode === "custom" ? customDays : Number(rangeMode);
 
   useEffect(() => {
@@ -324,6 +326,54 @@ export default function DashboardPage({ refreshKey, account, onNavigate }: Dashb
                         </div>
                       ) : null}
                     </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {consistency && (consistency.inferred_count ?? 0) > 0 ? (
+        <section>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <Calculator className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-base font-bold text-blue-900">
+                    已自动推算 {consistency.inferred_count} 条持仓变化
+                  </div>
+                  <div className="mt-1 text-sm text-blue-700">
+                    未上传成交截图时，系统会用相邻两次持仓快照的数量差推算买入或卖出变化；这类变化不会作为异常报警。
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInferredDetails(!showInferredDetails)}
+                className="shrink-0 rounded-lg bg-blue-200 px-4 py-2 text-sm font-semibold text-blue-900 transition hover:bg-blue-300"
+              >
+                {showInferredDetails ? "收起" : "查看推算"}
+              </button>
+            </div>
+
+            {showInferredDetails ? (
+              <div className="mt-4 space-y-3">
+                {(consistency.inferred_changes ?? []).map((change, i) => (
+                  <div key={`${change.stock_code}-${change.window_start}-${i}`} className="rounded-lg border border-blue-200 bg-white px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold tabular-nums text-slate-800">{change.stock_code}</span>
+                      {change.stock_name ? <span className="text-sm text-slate-500">{change.stock_name}</span> : null}
+                      <span className={cn(
+                        "rounded-md px-2 py-0.5 text-xs font-semibold",
+                        change.quantity_change > 0 ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-600",
+                      )}>
+                        {change.quantity_change > 0 ? "推算买入" : "推算卖出"}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-slate-600">{change.message}</div>
                   </div>
                 ))}
               </div>
