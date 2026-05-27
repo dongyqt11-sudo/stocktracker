@@ -1,23 +1,12 @@
 import { Plus, RefreshCcw, Search, ShieldAlert, Target, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import {
   Account,
   createWatchlistStock,
   deleteWatchlistStock,
   getWatchlist,
-  getWatchlistHistory,
   updateWatchlistStock,
-  WatchHistoryPoint,
   WatchlistStock,
   WatchStatus,
 } from "../api/client";
@@ -67,24 +56,12 @@ function toNumberOrNull(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function HistoryTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 shadow-card">
-      <div className="text-xs font-semibold text-text-secondary">{label}</div>
-      <div className="mt-1 text-sm font-bold tabular-nums text-text-primary">{formatCurrency(Number(payload[0].value))}</div>
-    </div>
-  );
-}
-
 export default function WatchlistPage({ refreshKey, account }: WatchlistPageProps) {
   const [rows, setRows] = useState<WatchlistStock[]>([]);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [history, setHistory] = useState<WatchHistoryPoint[]>([]);
-  const [historyError, setHistoryError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sectorFilter, setSectorFilter] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("sector");
@@ -137,21 +114,6 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
     setEditNote(selected.note);
   }, [selected?.id]);
 
-  useEffect(() => {
-    if (!selected) {
-      setHistory([]);
-      setHistoryError(null);
-      return;
-    }
-    setHistoryError(null);
-    void getWatchlistHistory(selected.stock_code, 90)
-      .then((data) => setHistory(data.items))
-      .catch((err) => {
-        setHistory([]);
-        setHistoryError(err instanceof Error ? err.message : "走势加载失败");
-      });
-  }, [selected?.stock_code]);
-
   const sectors = useMemo(() => Array.from(new Set(rows.map((row) => row.sector))).sort(), [rows]);
 
   const sectorStats = useMemo(
@@ -188,11 +150,6 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
       return a.sector.localeCompare(b.sector, "zh-CN") || a.sort_order - b.sort_order || a.stock_code.localeCompare(b.stock_code);
     });
   }, [query, rows, sectorFilter, sortMode]);
-
-  const historyData = useMemo(
-    () => history.map((point) => ({ date: point.date.slice(5), close: point.close })),
-    [history],
-  );
 
   async function addStock() {
     const code = newCode.trim();
@@ -415,38 +372,7 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
       </Card>
 
       {selected ? (
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>
-                {selected.stock_name ?? selected.stock_code} · 90 日走势
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[360px]">
-              {historyData.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={historyData} margin={{ top: 12, right: 20, bottom: 8, left: 0 }}>
-                    <defs>
-                      <linearGradient id="watchPriceFill" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#2563EB" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="var(--border-light)" strokeDasharray="3 4" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fontSize: 12, fill: "var(--text-tertiary)" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: "var(--text-tertiary)" }} axisLine={false} tickLine={false} width={60} />
-                    <Tooltip content={<HistoryTooltip />} />
-                    <Area type="monotone" dataKey="close" stroke="#2563EB" strokeWidth={2.5} fill="url(#watchPriceFill)" dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-stripe)] text-sm text-text-tertiary">
-                  {historyError ?? "暂无走势数据"}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
+        <section className="max-w-xl">
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle>观察信息</CardTitle>
