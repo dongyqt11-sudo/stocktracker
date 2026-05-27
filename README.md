@@ -107,7 +107,7 @@ make frontend
 - 编辑自选：`PUT /api/watchlist/{id}?account_id=`
 - 删除自选：`DELETE /api/watchlist/{id}?account_id=`
 - 个股走势：`GET /api/watchlist/{code}/history?days=90`
-- 首版只支持 6 位 A 股代码。实时行情和历史走势来自 AKShare；如果外部行情暂不可用，页面会保留本地自选、板块、备注和提醒信息。
+- 首版只支持 6 位 A 股代码。实时行情和历史走势来自腾讯行情接口；如果外部行情暂不可用，页面会保留本地自选、板块、备注和提醒信息。
 
 阶段 2 页面：
 

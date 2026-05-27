@@ -162,7 +162,7 @@ def list_watchlist(
     quotes: dict[str, dict[str, Any]] = {}
     if rows:
         try:
-            quotes = get_a_share_spot_quotes()
+            quotes = get_a_share_spot_quotes([row.stock_code for row in rows])
         except MarketDataError as exc:
             quote_error = str(exc)
 

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from datetime import date, timedelta
+import json
+import re
 from time import monotonic
 from typing import Any
+
+import requests
 
 
 class MarketDataError(RuntimeError):
@@ -14,7 +17,7 @@ _SPOT_CACHE: tuple[float, dict[str, dict[str, Any]]] | None = None
 _SPOT_FAILURE_UNTIL = 0.0
 _SPOT_CACHE_SECONDS = 60
 _SPOT_FAILURE_COOLDOWN_SECONDS = 60
-_MARKET_TIMEOUT_SECONDS = 5
+_MARKET_TIMEOUT_SECONDS = 10
 _EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="market-data")
 
 
@@ -36,14 +39,6 @@ def _clean_text(value: Any) -> str | None:
     return text or None
 
 
-def _load_akshare():
-    try:
-        import akshare as ak
-    except Exception as exc:  # pragma: no cover - depends on local optional package state
-        raise MarketDataError("AKShare is not available.") from exc
-    return ak
-
-
 def _run_with_timeout(func, *args):
     future = _EXECUTOR.submit(func, *args)
     try:
@@ -58,84 +53,128 @@ def get_cached_a_share_spot_quotes() -> dict[str, dict[str, Any]]:
     return {}
 
 
-def _fetch_spot_frame():
-    ak = _load_akshare()
-    return ak.stock_zh_a_spot_em()
+def _market_symbol(stock_code: str) -> str:
+    if stock_code.startswith(("4", "8", "92")):
+        return f"bj{stock_code}"
+    if stock_code.startswith(("6", "5", "9")):
+        return f"sh{stock_code}"
+    return f"sz{stock_code}"
 
 
-def get_a_share_spot_quotes() -> dict[str, dict[str, Any]]:
+def _decode_response(content: bytes, fallback_text: str) -> str:
+    try:
+        return content.decode("gbk")
+    except UnicodeDecodeError:
+        return fallback_text
+
+
+def _fetch_tencent_quotes(stock_codes: list[str]) -> str:
+    symbols = ",".join(_market_symbol(code) for code in stock_codes)
+    response = requests.get(
+        "https://qt.gtimg.cn/q=" + symbols,
+        headers={"Referer": "https://gu.qq.com/"},
+        timeout=_MARKET_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return _decode_response(response.content, response.text)
+
+
+def _fetch_tencent_history(stock_code: str, days: int) -> dict[str, Any]:
+    symbol = _market_symbol(stock_code)
+    response = requests.get(
+        "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
+        params={"param": f"{symbol},day,,,{days},qfq"},
+        headers={"Referer": "https://gu.qq.com/"},
+        timeout=_MARKET_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return json.loads(response.text)
+
+
+def _part(parts: list[str], index: int) -> str | None:
+    if index >= len(parts):
+        return None
+    return parts[index]
+
+
+def _parse_tencent_quotes(text: str) -> dict[str, dict[str, Any]]:
+    quotes: dict[str, dict[str, Any]] = {}
+    for match in re.finditer(r'v_(?:sh|sz|bj)(\d{6})="([^"]*)"', text):
+        parts = match.group(2).split("~")
+        code = _clean_text(_part(parts, 2)) or match.group(1)
+        turnover_value = _clean_number(_part(parts, 37))
+        quotes[code] = {
+            "stock_code": code,
+            "stock_name": _clean_text(_part(parts, 1)),
+            "latest_price": _clean_number(_part(parts, 3)),
+            "change_pct": _clean_number(_part(parts, 32)),
+            "change_amount": _clean_number(_part(parts, 31)),
+            "turnover": turnover_value * 10000 if turnover_value is not None else None,
+            "volume": _clean_number(_part(parts, 36)),
+            "amplitude": _clean_number(_part(parts, 43)),
+            "high": _clean_number(_part(parts, 33)),
+            "low": _clean_number(_part(parts, 34)),
+            "open": _clean_number(_part(parts, 5)),
+            "previous_close": _clean_number(_part(parts, 4)),
+            "turnover_rate": _clean_number(_part(parts, 38)),
+            "sixty_day_change_pct": None,
+            "year_to_date_change_pct": None,
+        }
+    return quotes
+
+
+def get_a_share_spot_quotes(stock_codes: list[str] | None = None) -> dict[str, dict[str, Any]]:
     global _SPOT_CACHE, _SPOT_FAILURE_UNTIL
 
+    codes = sorted({code for code in stock_codes or [] if len(code) == 6 and code.isdigit()})
+    if not codes:
+        return get_cached_a_share_spot_quotes()
+
     now = monotonic()
-    if _SPOT_CACHE and now - _SPOT_CACHE[0] < _SPOT_CACHE_SECONDS:
-        return _SPOT_CACHE[1]
+    if _SPOT_CACHE and now - _SPOT_CACHE[0] < _SPOT_CACHE_SECONDS and all(code in _SPOT_CACHE[1] for code in codes):
+        return {code: _SPOT_CACHE[1][code] for code in codes}
     if now < _SPOT_FAILURE_UNTIL:
         raise MarketDataError("Market data is temporarily unavailable.")
 
     try:
-        frame = _run_with_timeout(_fetch_spot_frame)
+        text = _run_with_timeout(_fetch_tencent_quotes, codes)
     except Exception as exc:
         _SPOT_FAILURE_UNTIL = monotonic() + _SPOT_FAILURE_COOLDOWN_SECONDS
-        raise MarketDataError("Failed to fetch A-share spot quotes.") from exc
+        raise MarketDataError("Failed to fetch Tencent A-share spot quotes.") from exc
 
-    quotes: dict[str, dict[str, Any]] = {}
-    for row in frame.to_dict("records"):
-        code = _clean_text(row.get("代码"))
-        if not code:
-            continue
-        quotes[code] = {
-            "stock_code": code,
-            "stock_name": _clean_text(row.get("名称")),
-            "latest_price": _clean_number(row.get("最新价")),
-            "change_pct": _clean_number(row.get("涨跌幅")),
-            "change_amount": _clean_number(row.get("涨跌额")),
-            "turnover": _clean_number(row.get("成交额")),
-            "volume": _clean_number(row.get("成交量")),
-            "amplitude": _clean_number(row.get("振幅")),
-            "high": _clean_number(row.get("最高")),
-            "low": _clean_number(row.get("最低")),
-            "open": _clean_number(row.get("今开")),
-            "previous_close": _clean_number(row.get("昨收")),
-            "turnover_rate": _clean_number(row.get("换手率")),
-            "sixty_day_change_pct": _clean_number(row.get("60日涨跌幅")),
-            "year_to_date_change_pct": _clean_number(row.get("年初至今涨跌幅")),
-        }
-
+    quotes = _parse_tencent_quotes(text)
     _SPOT_CACHE = (now, quotes)
     return quotes
 
 
 def get_a_share_history(stock_code: str, days: int) -> list[dict[str, Any]]:
-    ak = _load_akshare()
-    end = date.today()
-    start = end - timedelta(days=max(days * 2, 30))
-
-    def fetch_history():
-        return ak.stock_zh_a_hist(
-            symbol=stock_code,
-            period="daily",
-            start_date=start.strftime("%Y%m%d"),
-            end_date=end.strftime("%Y%m%d"),
-            adjust="qfq",
-        )
-
     try:
-        frame = _run_with_timeout(fetch_history)
+        payload = _run_with_timeout(_fetch_tencent_history, stock_code, days)
     except Exception as exc:
-        raise MarketDataError("Failed to fetch A-share history.") from exc
+        raise MarketDataError("Failed to fetch Tencent A-share history.") from exc
 
     records = []
-    for row in frame.tail(days).to_dict("records"):
+    symbol = _market_symbol(stock_code)
+    rows = payload.get("data", {}).get(symbol, {}).get("qfqday") or payload.get("data", {}).get(symbol, {}).get("day") or []
+    previous_close = None
+    for row in rows[-days:]:
+        open_price = _clean_number(row[1] if len(row) > 1 else None)
+        close_price = _clean_number(row[2] if len(row) > 2 else None)
+        change_pct = None
+        if previous_close not in (None, 0) and close_price is not None:
+            change_pct = round((close_price - previous_close) / previous_close * 100, 4)
         records.append(
             {
-                "date": str(row.get("日期")),
-                "close": _clean_number(row.get("收盘")),
-                "open": _clean_number(row.get("开盘")),
-                "high": _clean_number(row.get("最高")),
-                "low": _clean_number(row.get("最低")),
-                "change_pct": _clean_number(row.get("涨跌幅")),
-                "turnover": _clean_number(row.get("成交额")),
-                "turnover_rate": _clean_number(row.get("换手率")),
+                "date": str(row[0] if len(row) > 0 else ""),
+                "close": close_price,
+                "open": open_price,
+                "high": _clean_number(row[3] if len(row) > 3 else None),
+                "low": _clean_number(row[4] if len(row) > 4 else None),
+                "change_pct": change_pct,
+                "turnover": None,
+                "turnover_rate": None,
             }
         )
+        if close_price is not None:
+            previous_close = close_price
     return records
