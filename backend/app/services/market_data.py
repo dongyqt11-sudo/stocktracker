@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import date, timedelta
 from time import monotonic
 from typing import Any
@@ -10,7 +11,11 @@ class MarketDataError(RuntimeError):
 
 
 _SPOT_CACHE: tuple[float, dict[str, dict[str, Any]]] | None = None
+_SPOT_FAILURE_UNTIL = 0.0
 _SPOT_CACHE_SECONDS = 60
+_SPOT_FAILURE_COOLDOWN_SECONDS = 60
+_MARKET_TIMEOUT_SECONDS = 5
+_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="market-data")
 
 
 def _clean_number(value: Any) -> float | None:
@@ -39,17 +44,38 @@ def _load_akshare():
     return ak
 
 
+def _run_with_timeout(func, *args):
+    future = _EXECUTOR.submit(func, *args)
+    try:
+        return future.result(timeout=_MARKET_TIMEOUT_SECONDS)
+    except TimeoutError as exc:
+        raise MarketDataError("Market data request timed out.") from exc
+
+
+def get_cached_a_share_spot_quotes() -> dict[str, dict[str, Any]]:
+    if _SPOT_CACHE:
+        return _SPOT_CACHE[1]
+    return {}
+
+
+def _fetch_spot_frame():
+    ak = _load_akshare()
+    return ak.stock_zh_a_spot_em()
+
+
 def get_a_share_spot_quotes() -> dict[str, dict[str, Any]]:
-    global _SPOT_CACHE
+    global _SPOT_CACHE, _SPOT_FAILURE_UNTIL
 
     now = monotonic()
     if _SPOT_CACHE and now - _SPOT_CACHE[0] < _SPOT_CACHE_SECONDS:
         return _SPOT_CACHE[1]
+    if now < _SPOT_FAILURE_UNTIL:
+        raise MarketDataError("Market data is temporarily unavailable.")
 
-    ak = _load_akshare()
     try:
-        frame = ak.stock_zh_a_spot_em()
+        frame = _run_with_timeout(_fetch_spot_frame)
     except Exception as exc:
+        _SPOT_FAILURE_UNTIL = monotonic() + _SPOT_FAILURE_COOLDOWN_SECONDS
         raise MarketDataError("Failed to fetch A-share spot quotes.") from exc
 
     quotes: dict[str, dict[str, Any]] = {}
@@ -84,14 +110,17 @@ def get_a_share_history(stock_code: str, days: int) -> list[dict[str, Any]]:
     end = date.today()
     start = end - timedelta(days=max(days * 2, 30))
 
-    try:
-        frame = ak.stock_zh_a_hist(
+    def fetch_history():
+        return ak.stock_zh_a_hist(
             symbol=stock_code,
             period="daily",
             start_date=start.strftime("%Y%m%d"),
             end_date=end.strftime("%Y%m%d"),
             adjust="qfq",
         )
+
+    try:
+        frame = _run_with_timeout(fetch_history)
     except Exception as exc:
         raise MarketDataError("Failed to fetch A-share history.") from exc
 

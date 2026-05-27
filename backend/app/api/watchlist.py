@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.watchlist import WatchlistStock
-from app.services.market_data import MarketDataError, get_a_share_history, get_a_share_spot_quotes
+from app.services.market_data import (
+    MarketDataError,
+    get_a_share_history,
+    get_a_share_spot_quotes,
+    get_cached_a_share_spot_quotes,
+)
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
@@ -179,12 +184,9 @@ def create_watchlist_stock(payload: WatchlistCreate, db: Session = Depends(get_d
         raise HTTPException(status_code=409, detail="Stock already exists in this watchlist.")
 
     stock_name = payload.stock_name
-    try:
-        quote = get_a_share_spot_quotes().get(payload.stock_code)
-        if quote and quote.get("stock_name"):
-            stock_name = str(quote["stock_name"])
-    except MarketDataError:
-        pass
+    quote = get_cached_a_share_spot_quotes().get(payload.stock_code)
+    if quote and quote.get("stock_name"):
+        stock_name = str(quote["stock_name"])
 
     next_order = (
         db.scalar(
