@@ -33,7 +33,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import assets, holdings, notes, screenshots, transactions  # noqa: F401
+    from app.models import assets, holdings, notes, screenshots, transactions, watchlist  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _ensure_account_columns()

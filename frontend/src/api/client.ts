@@ -304,3 +304,100 @@ export async function updateNote(
 export async function deleteNote(noteId: number, accountId: string): Promise<{ status: string }> {
   return request<{ status: string }>(`/api/notes/${noteId}?account_id=${encodeURIComponent(accountId)}`, { method: "DELETE" });
 }
+
+export type WatchStatus = "watching" | "focus" | "archived";
+
+export type WatchlistStock = {
+  id: number;
+  account_id: string;
+  account_name: string;
+  stock_code: string;
+  stock_name: string | null;
+  sector: string;
+  status: WatchStatus;
+  note: string;
+  target_price: number | null;
+  stop_loss_price: number | null;
+  sort_order: number;
+  created_at: string;
+  latest_price: number | null;
+  change_pct: number | null;
+  change_amount: number | null;
+  turnover: number | null;
+  volume: number | null;
+  amplitude: number | null;
+  high: number | null;
+  low: number | null;
+  open: number | null;
+  previous_close: number | null;
+  turnover_rate: number | null;
+  sixty_day_change_pct: number | null;
+  year_to_date_change_pct: number | null;
+  alert: "target_reached" | "stop_loss_reached" | "near_target" | "near_stop_loss" | null;
+};
+
+export type WatchlistResponse = {
+  items: WatchlistStock[];
+  quote_error: string | null;
+};
+
+export type WatchHistoryPoint = {
+  date: string;
+  close: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  change_pct: number | null;
+  turnover: number | null;
+  turnover_rate: number | null;
+};
+
+export type WatchHistoryResponse = {
+  stock_code: string;
+  items: WatchHistoryPoint[];
+};
+
+export async function getWatchlist(accountId = "account_1"): Promise<WatchlistResponse> {
+  return request<WatchlistResponse>(`/api/watchlist?account_id=${encodeURIComponent(accountId)}`);
+}
+
+export async function createWatchlistStock(
+  account: Account,
+  data: {
+    stock_code: string;
+    stock_name?: string;
+    sector: string;
+    status?: WatchStatus;
+    note?: string;
+    target_price?: number | null;
+    stop_loss_price?: number | null;
+  },
+): Promise<WatchlistStock> {
+  return request<WatchlistStock>("/api/watchlist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...data, account_id: account.id, account_name: account.name }),
+  });
+}
+
+export async function updateWatchlistStock(
+  stockId: number,
+  accountId: string,
+  data: Partial<Pick<WatchlistStock, "stock_name" | "sector" | "status" | "note" | "target_price" | "stop_loss_price" | "sort_order">>,
+): Promise<WatchlistStock> {
+  return request<WatchlistStock>(`/api/watchlist/${stockId}?account_id=${encodeURIComponent(accountId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteWatchlistStock(stockId: number, accountId: string): Promise<{ status: string }> {
+  return request<{ status: string }>(`/api/watchlist/${stockId}?account_id=${encodeURIComponent(accountId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getWatchlistHistory(stockCode: string, days = 90): Promise<WatchHistoryResponse> {
+  return request<WatchHistoryResponse>(`/api/watchlist/${encodeURIComponent(stockCode)}/history?days=${days}`);
+}
