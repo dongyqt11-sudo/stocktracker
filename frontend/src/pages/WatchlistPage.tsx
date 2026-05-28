@@ -1,6 +1,16 @@
 import { ArrowDown, ArrowUp, Plus, RefreshCcw, Search, ShieldAlert, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import {
   Account,
@@ -76,6 +86,18 @@ function toNumberOrNull(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function SectorTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 shadow-card">
+      <div className="text-xs font-semibold text-text-secondary">{label}</div>
+      <div className={cn("mt-1 text-sm font-bold tabular-nums", profitClass(Number(payload[0].value)))}>
+        {formatNumber(Number(payload[0].value), "%")}
+      </div>
+    </div>
+  );
+}
+
 export default function WatchlistPage({ refreshKey, account }: WatchlistPageProps) {
   const [rows, setRows] = useState<WatchlistStock[]>([]);
   const [quoteError, setQuoteError] = useState<string | null>(null);
@@ -93,8 +115,10 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
   const [editTarget, setEditTarget] = useState("");
   const [editStopLoss, setEditStopLoss] = useState("");
   const [editNote, setEditNote] = useState("");
+  const [selectedCardSectors, setSelectedCardSectors] = useState<string[]>([]);
 
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
+  const sectorCardStorageKey = `stocktracker-watchlist-sector-cards-${account.id}`;
 
   const loadRows = useCallback(async () => {
     setIsLoading(true);
@@ -117,6 +141,15 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
   useEffect(() => {
     void loadRows();
   }, [loadRows, refreshKey]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(sectorCardStorageKey) || "[]");
+      setSelectedCardSectors(Array.isArray(saved) ? saved.slice(0, 4).filter((item) => typeof item === "string") : []);
+    } catch {
+      setSelectedCardSectors([]);
+    }
+  }, [sectorCardStorageKey]);
 
   useEffect(() => {
     if (!selected) {
@@ -152,6 +185,35 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
     [rows, sectors],
   );
 
+  const sectorStatsByName = useMemo(
+    () => new Map(sectorStats.map((stat) => [stat.sector, stat])),
+    [sectorStats],
+  );
+
+  const cardSectors = useMemo(() => {
+    const seen = new Set<string>();
+    const selectedValid = selectedCardSectors.filter((sector) => {
+      if (!sectors.includes(sector) || seen.has(sector)) return false;
+      seen.add(sector);
+      return true;
+    });
+    const fallback = sectors.filter((sector) => !selectedValid.includes(sector));
+    return [...selectedValid, ...fallback].slice(0, 4);
+  }, [selectedCardSectors, sectors]);
+
+  const sectorComparisonData = useMemo(
+    () =>
+      sectorStats
+        .filter((stat) => stat.avg !== null)
+        .sort((a, b) => (b.avg ?? -Infinity) - (a.avg ?? -Infinity))
+        .map((stat) => ({
+          sector: stat.sector,
+          avg: Number((stat.avg ?? 0).toFixed(2)),
+          count: stat.count,
+        })),
+    [sectorStats],
+  );
+
   const filteredRows = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     const filtered = rows.filter((row) => {
@@ -173,6 +235,13 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
 
   function toggleChangeSort() {
     setSortMode((current) => (current === "change_desc" ? "change_asc" : "change_desc"));
+  }
+
+  function selectCardSector(index: number, sector: string) {
+    const next = cardSectors.filter((item) => item !== sector);
+    next[index] = sector;
+    setSelectedCardSectors(next);
+    localStorage.setItem(sectorCardStorageKey, JSON.stringify(next));
   }
 
   async function addStock() {
@@ -229,12 +298,25 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
   return (
     <div className="space-y-5">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {sectorStats.slice(0, 4).map((stat) => (
-          <Card key={stat.sector} className="shadow-card">
+        {cardSectors.map((sector, index) => {
+          const stat = sectorStatsByName.get(sector);
+          if (!stat) return null;
+          return (
+          <Card key={`${index}-${sector}`} className="shadow-card">
             <CardContent className="p-5">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="truncate text-xs font-semibold text-text-secondary">{stat.sector}</div>
+                  <select
+                    value={sector}
+                    onChange={(event) => selectCardSector(index, event.target.value)}
+                    className="h-7 max-w-full rounded-md border border-[var(--border-light)] bg-[var(--bg-card)] px-1 text-xs font-semibold text-text-secondary outline-none focus:border-primary"
+                  >
+                    {sectors.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                   <div className="mt-2 text-xl font-bold tabular-nums text-text-primary">{stat.count} 只</div>
                 </div>
                 <div className={cn("text-right text-lg font-bold tabular-nums", profitClass(stat.avg))}>
@@ -247,13 +329,56 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
               </div>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
         {!sectorStats.length ? (
           <Card className="shadow-card xl:col-span-4">
             <CardContent className="p-5 text-sm text-text-tertiary">暂无自选股票</CardContent>
           </Card>
         ) : null}
       </section>
+
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle>板块涨幅对比</CardTitle>
+        </CardHeader>
+        <CardContent className="p-5">
+          {sectorComparisonData.length ? (
+            <div style={{ height: Math.max(300, sectorComparisonData.length * 34) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sectorComparisonData} layout="vertical" margin={{ top: 4, right: 36, left: 24, bottom: 4 }}>
+                  <CartesianGrid stroke="var(--border-light)" strokeDasharray="3 4" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 12, fill: "var(--text-tertiary)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(value: number) => `${value}%`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="sector"
+                    width={120}
+                    tick={{ fontSize: 12, fill: "var(--text-secondary)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip content={<SectorTooltip />} />
+                  <Bar dataKey="avg" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                    {sectorComparisonData.map((entry) => (
+                      <Cell key={entry.sector} fill={entry.avg >= 0 ? "var(--up)" : "var(--down)"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-stripe)] px-4 py-10 text-center text-sm text-text-tertiary">
+              暂无可对比的板块涨跌幅
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="shadow-card">
         <CardHeader className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
