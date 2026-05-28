@@ -1,4 +1,5 @@
-import { Plus, RefreshCcw, Search, ShieldAlert, Target, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, RefreshCcw, Search, ShieldAlert, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -34,19 +35,38 @@ function statusLabel(status: string) {
   return statusOptions.find((option) => option.value === status)?.label ?? status;
 }
 
-function alertLabel(alert: WatchlistStock["alert"]) {
-  if (alert === "target_reached") return "已到目标";
-  if (alert === "stop_loss_reached") return "已到止损";
-  if (alert === "near_target") return "接近目标";
-  if (alert === "near_stop_loss") return "接近止损";
-  return null;
-}
-
 function formatAmount(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "--";
   if (Math.abs(value) >= 100000000) return `${(value / 100000000).toFixed(2)} 亿`;
   if (Math.abs(value) >= 10000) return `${(value / 10000).toFixed(2)} 万`;
   return value.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+}
+
+function SortHeader({
+  active,
+  children,
+  direction,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  direction: "asc" | "desc";
+  onClick: () => void;
+}) {
+  const Icon = direction === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "ml-auto inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs font-semibold transition hover:bg-[var(--bg-hover)]",
+        active ? "text-primary" : "text-text-secondary",
+      )}
+    >
+      {children}
+      {active ? <Icon className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5 opacity-35" />}
+    </button>
+  );
 }
 
 function toNumberOrNull(value: string) {
@@ -150,6 +170,10 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
       return a.sector.localeCompare(b.sector, "zh-CN") || a.sort_order - b.sort_order || a.stock_code.localeCompare(b.stock_code);
     });
   }, [query, rows, sectorFilter, sortMode]);
+
+  function toggleChangeSort() {
+    setSortMode((current) => (current === "change_desc" ? "change_asc" : "change_desc"));
+  }
 
   async function addStock() {
     const code = newCode.trim();
@@ -295,17 +319,30 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
                   <Th>板块</Th>
                   <Th>状态</Th>
                   <Th className="text-right">最新价</Th>
-                  <Th className="text-right">涨跌幅</Th>
-                  <Th className="text-right">成交额</Th>
+                  <Th className="text-right">
+                    <SortHeader
+                      active={sortMode === "change_desc" || sortMode === "change_asc"}
+                      direction={sortMode === "change_asc" ? "asc" : "desc"}
+                      onClick={toggleChangeSort}
+                    >
+                      涨跌幅
+                    </SortHeader>
+                  </Th>
+                  <Th className="text-right">
+                    <SortHeader
+                      active={sortMode === "turnover_desc"}
+                      direction="desc"
+                      onClick={() => setSortMode("turnover_desc")}
+                    >
+                      成交额
+                    </SortHeader>
+                  </Th>
                   <Th className="text-right">换手率</Th>
-                  <Th className="text-right">60 日</Th>
-                  <Th>提醒</Th>
                   <Th className="w-12" />
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map((row, i) => {
-                  const alert = alertLabel(row.alert);
                   const active = selected?.id === row.id;
                   return (
                     <tr
@@ -330,19 +367,6 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
                       </Td>
                       <Td className="text-right tabular-nums">{formatAmount(row.turnover)}</Td>
                       <Td className="text-right tabular-nums">{formatNumber(row.turnover_rate, "%")}</Td>
-                      <Td className={cn("text-right tabular-nums", profitClass(row.sixty_day_change_pct))}>
-                        {formatNumber(row.sixty_day_change_pct, "%")}
-                      </Td>
-                      <Td>
-                        {alert ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
-                            <Target className="h-3.5 w-3.5" />
-                            {alert}
-                          </span>
-                        ) : (
-                          <span className="text-text-tertiary">--</span>
-                        )}
-                      </Td>
                       <Td>
                         <button
                           onClick={(event) => {
@@ -360,7 +384,7 @@ export default function WatchlistPage({ refreshKey, account }: WatchlistPageProp
                 })}
                 {!filteredRows.length ? (
                   <tr>
-                    <Td colSpan={11} className="py-14 text-center text-text-tertiary">
+                    <Td colSpan={9} className="py-14 text-center text-text-tertiary">
                       暂无匹配数据
                     </Td>
                   </tr>
