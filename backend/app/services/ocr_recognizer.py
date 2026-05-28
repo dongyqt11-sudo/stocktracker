@@ -236,7 +236,7 @@ def _recognize_holdings(lines: list[dict[str, Any]]) -> dict[str, Any]:
     kw_assets = {
         "total_assets": _value_near_keyword(lines, ("总资产", "资产总值")),
         "market_value": _value_near_keyword(lines, ("持仓市值", "证券市值", "股票市值")),
-        "cash_available": _value_near_keyword(lines, ("可用资金", "可用现金", "可取资金")),
+        "cash_available": _value_near_keyword(lines, ("可用资金", "可用现金", "可取资金", "可用")),
         "daily_profit_loss": _value_near_keyword(lines, ("当日盈亏", "今日盈亏", "日盈亏", "当日参考盈亏")),
         "total_profit_loss": _value_near_keyword(lines, ("累计盈亏", "总盈亏", "历史盈亏")),
     }
@@ -520,7 +520,7 @@ def _extract_asset_by_position(lines: list[dict[str, Any]]) -> dict[str, float |
         elif "market_value" not in best:
             best["market_value"] = p["left"]
             best["cash_available"] = p["middle"] if p["middle"] is not None else p["right"]
-            if best.get("total_assets") and best["market_value"]:
+            if best["cash_available"] is None and best.get("total_assets") and best["market_value"]:
                 best["cash_available"] = round(best["total_assets"] - best["market_value"], 2)
             return best
 
@@ -531,7 +531,7 @@ def _recognize_assets(lines: list[dict[str, Any]]) -> dict[str, Any]:
     text = _joined_text(lines)
     total_assets = _value_near_keyword(lines, ("总资产", "资产总值"))
     market_value = _value_near_keyword(lines, ("持仓市值", "证券市值", "股票市值", "市值"))
-    cash_available = _value_near_keyword(lines, ("可用资金", "可用现金", "可取资金"))
+    cash_available = _value_near_keyword(lines, ("可用资金", "可用现金", "可取资金", "可用"))
     daily_profit_loss = _value_near_keyword(lines, ("当日盈亏", "今日盈亏", "日盈亏", "当日参考盈亏"))
     total_profit_loss = _value_near_keyword(lines, ("累计盈亏", "总盈亏", "历史盈亏"))
 
