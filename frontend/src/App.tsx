@@ -10,6 +10,7 @@ import {
   Settings,
   ShieldCheck,
   TrendingUp,
+  Workflow,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -20,11 +21,12 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import DashboardPage from "./pages/DashboardPage";
 import HoldingsPage from "./pages/HoldingsPage";
 import NotesPage from "./pages/NotesPage";
+import StrategyPage from "./pages/StrategyPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import UploadPage from "./pages/UploadPage";
 import WatchlistPage from "./pages/WatchlistPage";
 
-type Page = "dashboard" | "upload" | "holdings" | "watchlist" | "transactions" | "analytics" | "notes";
+type Page = "dashboard" | "upload" | "holdings" | "watchlist" | "strategy" | "transactions" | "analytics" | "notes";
 
 const accounts: Account[] = [
   { id: "account_1", name: "账户 1" },
@@ -36,6 +38,7 @@ const navItems: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }>
   { id: "upload", label: "上传识别", icon: CloudUpload },
   { id: "holdings", label: "持仓", icon: LineChart },
   { id: "watchlist", label: "自选追踪", icon: Radar },
+  { id: "strategy", label: "交易系统", icon: Workflow },
   { id: "transactions", label: "交易", icon: FileText },
   { id: "analytics", label: "分析", icon: BarChart3 },
   { id: "notes", label: "笔记", icon: BookOpen },
@@ -46,6 +49,7 @@ const pageTitles: Record<Page, string> = {
   upload: "上传识别",
   holdings: "持仓",
   watchlist: "自选追踪",
+  strategy: "交易系统",
   transactions: "交易",
   analytics: "分析",
   notes: "笔记",
@@ -84,6 +88,9 @@ export default function App() {
     }
     if (page === "watchlist") {
       return <WatchlistPage refreshKey={refreshKey} account={activeAccount} />;
+    }
+    if (page === "strategy") {
+      return <StrategyPage />;
     }
     if (page === "transactions") {
       return <TransactionsPage refreshKey={refreshKey} account={activeAccount} />;
