@@ -42,6 +42,25 @@ export type UploadResponse = {
   error?: string | null;
 };
 
+export type ScreenshotRow = {
+  id: number;
+  account_id: string;
+  account_name: string;
+  uploaded_at: string;
+  screenshot_type: string | null;
+  status: string;
+  file_name: string;
+  image_url: string;
+  item_count: number | null;
+  snapshot_date: string | null;
+  error: string | null;
+};
+
+export type ScreenshotListResponse = {
+  account_id: string;
+  items: ScreenshotRow[];
+};
+
 export type DashboardData = {
   summary: {
     total_assets: number;
@@ -135,6 +154,10 @@ export async function uploadScreenshot(file: File, account: Account): Promise<Up
     method: "POST",
     body: form,
   });
+}
+
+export async function getAccountScreenshots(accountId = "account_1"): Promise<ScreenshotListResponse> {
+  return request<ScreenshotListResponse>(`/api/screenshots?account_id=${encodeURIComponent(accountId)}`);
 }
 
 export async function confirmScreenshot(screenshotId: number, data: RecognizedHoldingData) {

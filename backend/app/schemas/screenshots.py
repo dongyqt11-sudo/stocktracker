@@ -3,6 +3,25 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 
+class ScreenshotListItem(BaseModel):
+    id: int
+    account_id: str
+    account_name: str
+    uploaded_at: str
+    screenshot_type: str | None
+    status: str
+    file_name: str
+    image_url: str
+    item_count: int | None = None
+    snapshot_date: str | None = None
+    error: str | None = None
+
+
+class ScreenshotListResponse(BaseModel):
+    account_id: str
+    items: list[ScreenshotListItem]
+
+
 class ScreenshotUploadResponse(BaseModel):
     screenshot_id: int
     account_id: str

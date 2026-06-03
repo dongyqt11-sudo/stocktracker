@@ -3,6 +3,7 @@ import {
   BookOpen,
   CloudUpload,
   FileText,
+  Images,
   LayoutDashboard,
   LineChart,
   LogOut,
@@ -17,6 +18,7 @@ import { useMemo, useState } from "react";
 import { Account } from "./api/client";
 import { Button } from "./components/ui/button";
 import { cn } from "./lib/utils";
+import AccountScreenshotsPage from "./pages/AccountScreenshotsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import DashboardPage from "./pages/DashboardPage";
 import HoldingsPage from "./pages/HoldingsPage";
@@ -26,7 +28,16 @@ import TransactionsPage from "./pages/TransactionsPage";
 import UploadPage from "./pages/UploadPage";
 import WatchlistPage from "./pages/WatchlistPage";
 
-type Page = "dashboard" | "upload" | "holdings" | "watchlist" | "strategy" | "transactions" | "analytics" | "notes";
+type Page =
+  | "dashboard"
+  | "upload"
+  | "accountScreenshots"
+  | "holdings"
+  | "watchlist"
+  | "strategy"
+  | "transactions"
+  | "analytics"
+  | "notes";
 
 const accounts: Account[] = [
   { id: "account_1", name: "账户 1" },
@@ -36,6 +47,7 @@ const accounts: Account[] = [
 const navItems: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }> = [
   { id: "dashboard", label: "仪表盘", icon: LayoutDashboard },
   { id: "upload", label: "上传识别", icon: CloudUpload },
+  { id: "accountScreenshots", label: "账户截图", icon: Images },
   { id: "holdings", label: "持仓", icon: LineChart },
   { id: "watchlist", label: "自选追踪", icon: Radar },
   { id: "strategy", label: "交易系统", icon: Workflow },
@@ -47,6 +59,7 @@ const navItems: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }>
 const pageTitles: Record<Page, string> = {
   dashboard: "仪表盘",
   upload: "上传识别",
+  accountScreenshots: "账户截图",
   holdings: "持仓",
   watchlist: "自选追踪",
   strategy: "交易系统",
@@ -85,6 +98,9 @@ export default function App() {
     }
     if (page === "holdings") {
       return <HoldingsPage refreshKey={refreshKey} account={activeAccount} />;
+    }
+    if (page === "accountScreenshots") {
+      return <AccountScreenshotsPage refreshKey={refreshKey} account={activeAccount} />;
     }
     if (page === "watchlist") {
       return <WatchlistPage refreshKey={refreshKey} account={activeAccount} />;

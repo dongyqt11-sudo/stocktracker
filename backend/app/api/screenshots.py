@@ -5,8 +5,9 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import ValidationError
-from sqlalchemy import exists, select
+from sqlalchemy import desc, exists, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -20,6 +21,7 @@ from app.schemas.holdings import HoldingRecognizedData
 from app.schemas.screenshots import (
     ScreenshotConfirmRequest,
     ScreenshotConfirmResponse,
+    ScreenshotListResponse,
     ScreenshotUploadResponse,
 )
 from app.schemas.transactions import TransactionRecognizedData
@@ -55,6 +57,32 @@ def _save_upload(file: UploadFile) -> Path:
     return target
 
 
+def _resolve_screenshot_path(file_path: str) -> Path:
+    path = Path(file_path)
+    if path.is_absolute():
+        return path
+    return Path.cwd() / path
+
+
+def _screenshot_item(row: Screenshot) -> dict[str, Any]:
+    raw = row.raw_ai_response if isinstance(row.raw_ai_response, dict) else {}
+    items = raw.get("items")
+    path = Path(row.file_path)
+    return {
+        "id": row.id,
+        "account_id": row.account_id,
+        "account_name": row.account_name,
+        "uploaded_at": row.uploaded_at.isoformat(),
+        "screenshot_type": row.screenshot_type,
+        "status": row.status,
+        "file_name": path.name,
+        "image_url": f"/api/screenshots/{row.id}/image",
+        "item_count": len(items) if isinstance(items, list) else None,
+        "snapshot_date": raw.get("snapshot_date") if isinstance(raw.get("snapshot_date"), str) else None,
+        "error": raw.get("error") if isinstance(raw.get("error"), str) else None,
+    }
+
+
 def _build_stock_code_map(db: Session) -> dict[str, str]:
     mapping = load_stock_code_map()
     rows = (
@@ -69,6 +97,43 @@ def _build_stock_code_map(db: Session) -> dict[str, str]:
         if name and is_valid_stock_code(code):
             mapping[name] = code
     return mapping
+
+
+@router.get("", response_model=ScreenshotListResponse)
+def list_screenshots(
+    account_id: str = "account_1",
+    limit: int = 80,
+    db: Session = Depends(get_db),
+) -> ScreenshotListResponse:
+    rows = (
+        db.query(Screenshot)
+        .filter(Screenshot.account_id == account_id)
+        .order_by(desc(Screenshot.uploaded_at), desc(Screenshot.id))
+        .limit(min(max(limit, 1), 200))
+        .all()
+    )
+    return ScreenshotListResponse(
+        account_id=account_id,
+        items=[_screenshot_item(row) for row in rows],
+    )
+
+
+@router.get("/{screenshot_id}/image")
+def get_screenshot_image(
+    screenshot_id: int,
+    account_id: str | None = None,
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    row = db.get(Screenshot, screenshot_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Screenshot record not found.")
+    if account_id and row.account_id != account_id:
+        raise HTTPException(status_code=404, detail="Screenshot record not found.")
+
+    path = _resolve_screenshot_path(row.file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Screenshot file not found.")
+    return FileResponse(path)
 
 
 @router.post("/upload", response_model=ScreenshotUploadResponse)
