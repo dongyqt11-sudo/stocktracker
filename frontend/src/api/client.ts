@@ -53,6 +53,7 @@ export type ScreenshotRow = {
   image_url: string;
   item_count: number | null;
   snapshot_date: string | null;
+  linked_count: number;
   error: string | null;
 };
 
@@ -158,6 +159,20 @@ export async function uploadScreenshot(file: File, account: Account): Promise<Up
 
 export async function getAccountScreenshots(accountId = "account_1"): Promise<ScreenshotListResponse> {
   return request<ScreenshotListResponse>(`/api/screenshots?account_id=${encodeURIComponent(accountId)}`);
+}
+
+export async function deleteAccountScreenshot(
+  screenshotId: number,
+  accountId: string,
+  deleteImported = false,
+): Promise<{ status: string; screenshot_id: number; deleted_imported_count: number }> {
+  const search = new URLSearchParams();
+  search.set("account_id", accountId);
+  search.set("delete_imported", String(deleteImported));
+  return request<{ status: string; screenshot_id: number; deleted_imported_count: number }>(
+    `/api/screenshots/${screenshotId}?${search.toString()}`,
+    { method: "DELETE" },
+  );
 }
 
 export async function confirmScreenshot(screenshotId: number, data: RecognizedHoldingData) {

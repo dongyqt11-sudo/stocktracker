@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -64,7 +64,22 @@ def _resolve_screenshot_path(file_path: str) -> Path:
     return Path.cwd() / path
 
 
-def _screenshot_item(row: Screenshot) -> dict[str, Any]:
+def _linked_count(row: Screenshot, db: Session) -> int:
+    return (
+        db.query(Holding).filter(Holding.screenshot_id == row.id).count()
+        + db.query(Transaction).filter(Transaction.screenshot_id == row.id).count()
+        + db.query(AssetsDaily).filter(AssetsDaily.screenshot_id == row.id).count()
+    )
+
+
+def _uploaded_at_iso(row: Screenshot) -> str:
+    uploaded_at = row.uploaded_at
+    if uploaded_at.tzinfo is None:
+        uploaded_at = uploaded_at.replace(tzinfo=timezone.utc)
+    return uploaded_at.isoformat()
+
+
+def _screenshot_item(row: Screenshot, db: Session) -> dict[str, Any]:
     raw = row.raw_ai_response if isinstance(row.raw_ai_response, dict) else {}
     items = raw.get("items")
     path = Path(row.file_path)
@@ -72,13 +87,14 @@ def _screenshot_item(row: Screenshot) -> dict[str, Any]:
         "id": row.id,
         "account_id": row.account_id,
         "account_name": row.account_name,
-        "uploaded_at": row.uploaded_at.isoformat(),
+        "uploaded_at": _uploaded_at_iso(row),
         "screenshot_type": row.screenshot_type,
         "status": row.status,
         "file_name": path.name,
         "image_url": f"/api/screenshots/{row.id}/image",
         "item_count": len(items) if isinstance(items, list) else None,
         "snapshot_date": raw.get("snapshot_date") if isinstance(raw.get("snapshot_date"), str) else None,
+        "linked_count": _linked_count(row, db),
         "error": raw.get("error") if isinstance(raw.get("error"), str) else None,
     }
 
@@ -114,8 +130,53 @@ def list_screenshots(
     )
     return ScreenshotListResponse(
         account_id=account_id,
-        items=[_screenshot_item(row) for row in rows],
+        items=[_screenshot_item(row, db) for row in rows],
     )
+
+
+@router.delete("/{screenshot_id}")
+def delete_screenshot(
+    screenshot_id: int,
+    account_id: str | None = None,
+    delete_imported: bool = False,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    row = db.get(Screenshot, screenshot_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Screenshot record not found.")
+    if account_id and row.account_id != account_id:
+        raise HTTPException(status_code=404, detail="Screenshot record not found.")
+
+    linked_count = _linked_count(row, db)
+    if linked_count and not delete_imported:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This screenshot is linked to {linked_count} imported records. Confirm before deleting imported data.",
+        )
+
+    file_path = _resolve_screenshot_path(row.file_path)
+    try:
+        if delete_imported:
+            db.query(Holding).filter(Holding.screenshot_id == row.id).delete()
+            db.query(Transaction).filter(Transaction.screenshot_id == row.id).delete()
+            db.query(AssetsDaily).filter(AssetsDaily.screenshot_id == row.id).delete()
+        db.delete(row)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Screenshot delete failed. Please retry.") from exc
+
+    if file_path.exists():
+        try:
+            file_path.unlink()
+        except OSError:
+            pass
+
+    return {
+        "status": "deleted",
+        "screenshot_id": screenshot_id,
+        "deleted_imported_count": linked_count if delete_imported else 0,
+    }
 
 
 @router.get("/{screenshot_id}/image")

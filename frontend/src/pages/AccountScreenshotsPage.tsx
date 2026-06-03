@@ -1,7 +1,7 @@
-import { CalendarDays, CheckCircle2, Image as ImageIcon, Loader2, RefreshCcw, ShieldAlert } from "lucide-react";
+import { CalendarDays, CheckCircle2, Image as ImageIcon, Loader2, RefreshCcw, ShieldAlert, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Account, getAccountScreenshots, ScreenshotRow } from "../api/client";
+import { Account, deleteAccountScreenshot, getAccountScreenshots, ScreenshotRow } from "../api/client";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { cn } from "../lib/utils";
@@ -49,6 +49,7 @@ export default function AccountScreenshotsPage({ account, refreshKey }: AccountS
   const [rows, setRows] = useState<ScreenshotRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const selected = useMemo(
@@ -77,6 +78,30 @@ export default function AccountScreenshotsPage({ account, refreshKey }: AccountS
     void loadRows();
   }, [loadRows, refreshKey]);
 
+  async function removeScreenshot(row: ScreenshotRow) {
+    const confirmMessage =
+      row.linked_count > 0
+        ? `这张截图已关联 ${row.linked_count} 条入库数据。删除会同时删除这些入库数据，确定继续吗？`
+        : "确定删除这张截图吗？";
+    if (!window.confirm(confirmMessage)) return;
+
+    setDeletingId(row.id);
+    setError(null);
+    try {
+      await deleteAccountScreenshot(row.id, account.id, row.linked_count > 0);
+      setRows((current) => current.filter((item) => item.id !== row.id));
+      setSelectedId((current) => {
+        if (current !== row.id) return current;
+        const next = rows.find((item) => item.id !== row.id);
+        return next?.id ?? null;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "截图删除失败");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
       <Card className="shadow-card">
@@ -100,12 +125,11 @@ export default function AccountScreenshotsPage({ account, refreshKey }: AccountS
             {rows.map((row) => {
               const active = selected?.id === row.id;
               return (
-                <button
+                <div
                   key={row.id}
-                  type="button"
                   onClick={() => setSelectedId(row.id)}
                   className={cn(
-                    "w-full rounded-lg border px-3 py-3 text-left transition",
+                    "w-full cursor-pointer rounded-lg border px-3 py-3 text-left transition",
                     active
                       ? "border-primary bg-primary-light/60"
                       : "border-[var(--border-light)] bg-white hover:bg-[var(--bg-hover)]",
@@ -119,15 +143,30 @@ export default function AccountScreenshotsPage({ account, refreshKey }: AccountS
                         {formatTime(row.uploaded_at)}
                       </div>
                     </div>
-                    <span className={cn("shrink-0 rounded-md border px-2 py-0.5 text-xs font-semibold", statusClass(row.status))}>
-                      {statusLabels[row.status] ?? row.status}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className={cn("rounded-md border px-2 py-0.5 text-xs font-semibold", statusClass(row.status))}>
+                        {statusLabels[row.status] ?? row.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void removeScreenshot(row);
+                        }}
+                        disabled={deletingId === row.id}
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        title="删除截图"
+                      >
+                        {deletingId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-text-tertiary">
                     {row.snapshot_date ? <span>快照：{row.snapshot_date}</span> : null}
                     {row.item_count !== null ? <span>识别：{row.item_count} 行</span> : null}
+                    {row.linked_count > 0 ? <span>已入库：{row.linked_count} 条</span> : null}
                   </div>
-                </button>
+                </div>
               );
             })}
 

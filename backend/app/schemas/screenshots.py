@@ -14,6 +14,7 @@ class ScreenshotListItem(BaseModel):
     image_url: str
     item_count: int | None = None
     snapshot_date: str | None = None
+    linked_count: int
     error: str | None = None
 
 
